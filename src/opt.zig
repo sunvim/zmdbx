@@ -168,5 +168,6 @@ pub const Option = enum(c.enum_MDBX_option_t) {
     // format. The specified value must be in the range from 12.5% (almost empty)
     // to 50% (half empty) which corresponds to the range from 8192 and to 32768
     // in units respectively.
-    OptMergeThreshold16Dot16Percent = c.MDBX_opt_merge_threshold16_dot_16_percent,
+    // 注意: 此选项在某些 MDBX 版本中可能不存在,已注释
+    // OptMergeThreshold16Dot16Percent = c.MDBX_opt_merge_threshold16_dot_16_percent,
 };

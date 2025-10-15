@@ -39,7 +39,7 @@ pub fn build(b: *std.Build) void {
             "-DMDBX_BUILD_FLAGS=\"\"",
             "-DMDBX_DEBUG=0",
             "-DNDEBUG=1",
-            "-DMDBX_UNALIGNED_OK=8", // ARM64 支持 64 位未对齐访问
+            "-DMDBX_UNALIGNED_OK=0", // 禁用未对齐访问以避免 macOS 崩溃
             "-std=c11",
             "-Wno-unknown-pragmas",
             "-Wno-expansion-to-defined",
@@ -73,7 +73,7 @@ pub fn build(b: *std.Build) void {
             "-DMDBX_BUILD_FLAGS=\"\"",
             "-DMDBX_DEBUG=0",
             "-DNDEBUG=1",
-            "-DMDBX_UNALIGNED_OK=8", // ARM64 支持 64 位未对齐访问
+            "-DMDBX_UNALIGNED_OK=0", // 禁用未对齐访问以避免 macOS 崩溃
             "-std=c11",
             "-Wno-unknown-pragmas",
             "-Wno-expansion-to-defined",
@@ -121,4 +121,44 @@ pub fn build(b: *std.Build) void {
     // 创建 bench step
     const bench_step = b.step("bench", "Run performance benchmarks");
     bench_step.dependOn(&run_bench.step);
+
+    // 添加同步模式对比测试
+    const bench_sync_exe = b.addExecutable(.{
+        .name = "bench_sync_modes",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("tests/bench_sync_modes.zig"),
+            .target = target,
+            .optimize = optimize,
+        }),
+    });
+
+    bench_sync_exe.root_module.addImport("zmdbx", lib.root_module);
+    bench_sync_exe.linkLibrary(lib);
+    b.installArtifact(bench_sync_exe);
+
+    const run_bench_sync = b.addRunArtifact(bench_sync_exe);
+    run_bench_sync.step.dependOn(b.getInstallStep());
+
+    const bench_sync_step = b.step("bench-sync", "Run sync mode comparison benchmarks");
+    bench_sync_step.dependOn(&run_bench_sync.step);
+
+    // 添加事务模式对比测试
+    const bench_txn_exe = b.addExecutable(.{
+        .name = "bench_transaction_patterns",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("tests/bench_transaction_patterns.zig"),
+            .target = target,
+            .optimize = optimize,
+        }),
+    });
+
+    bench_txn_exe.root_module.addImport("zmdbx", lib.root_module);
+    bench_txn_exe.linkLibrary(lib);
+    b.installArtifact(bench_txn_exe);
+
+    const run_bench_txn = b.addRunArtifact(bench_txn_exe);
+    run_bench_txn.step.dependOn(b.getInstallStep());
+
+    const bench_txn_step = b.step("bench-txn", "Run transaction pattern benchmarks");
+    bench_txn_step.dependOn(&run_bench_txn.step);
 }

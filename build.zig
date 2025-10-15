@@ -18,41 +18,38 @@ pub fn build(b: *std.Build) void {
     // This creates a "module", which represents a collection of source files alongside
     // some compilation options, such as optimization mode and linked system libraries.
     // Every executable or library we compile will be based on one or more modules.
-    const lib_mod = b.createModule(.{
+    const lib = b.addLibrary(.{
         // `root_source_file` is the Zig "entry point" of the module. If a module
         // only contains e.g. external object files, you can make this `null`.
         // In this case the main source file is merely a path, however, in more
         // complicated build scripts, this could be a generated file.
-        .root_source_file = b.path("src/mdbx.zig"),
-        .target = target,
-        .optimize = optimize,
+        .name = "zmdbx",
+        .linkage = .static,
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/mdbx.zig"),
+            .target = target,
+            .optimize = optimize,
+        }),
     });
 
-    lib_mod.addCSourceFile(.{
-        .file = std.Build.LazyPath{ .src_path = .{
-            .owner = b,
-            .sub_path = "mdbx/mdbx.c",
-        } },
+    lib.addCSourceFile(.{
+        .file = b.path("mdbx/mdbx.c"),
         .flags = &.{
-            "-DMDBX_CONFIG_BY_H=1",
             "-DMDBX_BUILD_SHARED_LIBRARY=0",
-            "-DMDBX_BUILD_STATIC_LIBRARY=1",
+            "-DMDBX_BUILD_FLAGS=\"\"",
+            "-DMDBX_DEBUG=0",
+            "-DNDEBUG=1",
+            "-DMDBX_UNALIGNED_OK=8", // ARM64 支持 64 位未对齐访问
             "-std=c11",
+            "-Wno-unknown-pragmas",
+            "-Wno-expansion-to-defined",
+            "-Wno-date-time",
+            "-fno-strict-aliasing",
+            "-fvisibility=hidden",
         },
     });
 
-    lib_mod.addIncludePath(std.Build.LazyPath{ .src_path = .{
-        .owner = b,
-        .sub_path = "mdbx",
-    } });
-
-    // Now, we will create a static library based on the module we created above.
-    // This creates a `std.Build.Step.Compile`, which is the build step responsible
-    // for actually invoking the compiler.
-    const lib = b.addStaticLibrary(.{
-        .name = "zmdbx",
-        .root_module = lib_mod,
-    });
+    lib.addIncludePath(b.path("mdbx"));
 
     // This declares intent for the library to be installed into the standard
     // location when the user invokes the "install" step (the default step when
@@ -62,14 +59,66 @@ pub fn build(b: *std.Build) void {
     // Creates a step for unit testing. This only builds the test executable
     // but does not run it.
     const lib_unit_tests = b.addTest(.{
-        .root_module = lib_mod,
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/mdbx.zig"),
+            .target = target,
+            .optimize = optimize,
+        }),
     });
+
+    lib_unit_tests.addCSourceFile(.{
+        .file = b.path("mdbx/mdbx.c"),
+        .flags = &.{
+            "-DMDBX_BUILD_SHARED_LIBRARY=0",
+            "-DMDBX_BUILD_FLAGS=\"\"",
+            "-DMDBX_DEBUG=0",
+            "-DNDEBUG=1",
+            "-DMDBX_UNALIGNED_OK=8", // ARM64 支持 64 位未对齐访问
+            "-std=c11",
+            "-Wno-unknown-pragmas",
+            "-Wno-expansion-to-defined",
+            "-Wno-date-time",
+            "-fno-strict-aliasing",
+            "-fvisibility=hidden",
+        },
+    });
+    lib_unit_tests.addIncludePath(b.path("mdbx"));
 
     const run_lib_unit_tests = b.addRunArtifact(lib_unit_tests);
 
-    // Similar to creating the run step earlier, this exposes a `test` step to
-    // the `zig build --help` menu, providing a way for the user to request
-    // running the unit tests.
     const test_step = b.step("test", "Run unit tests");
     test_step.dependOn(&run_lib_unit_tests.step);
+
+    // 添加 benchmark 可执行文件
+    const bench_exe = b.addExecutable(.{
+        .name = "bench_performance",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("tests/bench_performance.zig"),
+            .target = target,
+            .optimize = optimize,
+        }),
+    });
+
+    // 为 benchmark 添加 zmdbx 模块依赖
+    // 使用 lib.root_module 以确保 @cImport 的类型一致性
+    bench_exe.root_module.addImport("zmdbx", lib.root_module);
+
+    // 链接到已编译的 zmdbx 库，而不是重复编译 mdbx.c
+    bench_exe.linkLibrary(lib);
+
+    // 安装 benchmark 可执行文件
+    b.installArtifact(bench_exe);
+
+    // 创建运行 benchmark 的步骤
+    const run_bench = b.addRunArtifact(bench_exe);
+    run_bench.step.dependOn(b.getInstallStep());
+
+    // 如果用户传递了参数，转发给 benchmark
+    if (b.args) |args| {
+        run_bench.addArgs(args);
+    }
+
+    // 创建 bench step
+    const bench_step = b.step("bench", "Run performance benchmarks");
+    bench_step.dependOn(&run_bench.step);
 }

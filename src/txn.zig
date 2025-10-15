@@ -1,151 +1,199 @@
-const c = @cImport({
-    @cInclude("mdbx.h");
-});
+const std = @import("std");
+const c_import = @import("c.zig");
+const c = c_import.c;
 
-const env = @import("env.zig");
+const errors = @import("errors.zig");
+const Env = @import("env.zig");
 
-pub const TxFlags = enum(c.MDBX_txn_flags) {
-    // TxReadWrite Start read-write transaction.
-    //
-    // Only one write transaction may be active at a time. Writes are fully
-    // serialized, which guarantees that writers can never deadlock.
-    ReadWrite = c.MDBX_TXN_READWRITE,
+/// 事务标志
+pub const TxFlags = enum(c.MDBX_txn_flags_t) {
+    /// 启动读写事务
+    ///
+    /// 一次只能有一个写事务处于活动状态。写操作完全序列化，
+    /// 这保证了写入者永远不会死锁。
+    read_write = c.MDBX_TXN_READWRITE,
 
-    // TxReadOnly Start read-only transaction.
-    //
-    // There can be multiple read-only transactions simultaneously that do not
-    // block each other and a write transactions.
-    ReadOnly = c.MDBX_TXN_RDONLY,
+    /// 启动只读事务
+    ///
+    /// 可以有多个只读事务同时运行，它们不会相互阻塞，
+    /// 也不会阻塞写事务。
+    read_only = c.MDBX_TXN_RDONLY,
 
-    // TxReadOnlyPrepare Prepare but not start read-only transaction.
-    //
-    // Transaction will not be started immediately, but created transaction handle
-    // will be ready for use with ref mdbx_txn_renew(). This flag allows to
-    // preallocate memory and assign a reader slot, thus avoiding these operations
-    // at the next start of the transaction.
-    ReadOnlyPrepare = c.MDBX_TXN_RDONLY_PREPARE,
+    /// 准备但不启动只读事务
+    ///
+    /// 事务不会立即启动，但创建的事务句柄可以用于 mdbx_txn_renew()。
+    /// 此标志允许预分配内存并分配读取器槽，从而避免在下次启动事务时执行这些操作。
+    read_only_prepare = c.MDBX_TXN_RDONLY_PREPARE,
 
-    // TxTry Do not block when starting a write transaction.
-    Try = c.MDBX_TXN_TRY,
+    /// 启动写事务时不阻塞
+    try_start = c.MDBX_TXN_TRY,
 
-    // TxNoMetaSync Exactly the same as ref MDBX_NOMETASYNC,
-    // but for this transaction only
-    NoMetaSync = c.MDBX_TXN_NOMETASYNC,
+    /// 与 MDBX_NOMETASYNC 完全相同，但仅针对此事务
+    no_meta_sync = c.MDBX_TXN_NOMETASYNC,
 
-    // TxNoSync Exactly the same as ref MDBX_SAFE_NOSYNC,
-    // but for this transaction only
-    NoSync = c.MDBX_TXN_NOSYNC,
+    /// 与 MDBX_SAFE_NOSYNC 完全相同，但仅针对此事务
+    no_sync = c.MDBX_TXN_NOSYNC,
 };
 
+/// Put 操作标志
 pub const PutFlags = enum(c.MDBX_put_flags_t) {
-    // PutUpsert Upsertion by default (without any other flags)
-    Upsert = c.MDBX_UPSERT,
+    /// 默认的更新插入操作（没有其他标志）
+    upsert = c.MDBX_UPSERT,
 
-    // PutNoOverwrite Don't write if the key already exists.
-    NoOverwrite = c.MDBX_NOOVERWRITE,
+    /// 如果键已存在则不写入
+    no_overwrite = c.MDBX_NOOVERWRITE,
 
-    // PutNoDupData Don't write if the key and data pair already exist.
-    NoDupData = c.MDBX_NODUPDATA,
+    /// 如果键和数据对已存在则不写入
+    no_dup_data = c.MDBX_NODUPDATA,
 
-    // PutCurrent Update the data of the key to the current key.
-    Current = c.MDBX_CURRENT,
+    /// 将当前键的数据更新为新数据
+    current = c.MDBX_CURRENT,
 
-    // PutAllDups Has effect only for ref MDBX_DUPSORT databases.
-    // For deletion: remove all multi-values (aka duplicates) for given key.
-    // For upsertion: replace all multi-values for given key with a new one.
-    AllDups = c.MDBX_ALLDUPS,
+    /// 仅对 MDBX_DUPSORT 数据库有效
+    /// 删除：删除给定键的所有多值（又名重复项）
+    /// 更新插入：用新值替换给定键的所有多值
+    all_dups = c.MDBX_ALLDUPS,
 
-    // PutReserve Reserve space for data, don't write it.
-    Reserve = c.MDBX_RESERVE,
+    /// 为数据预留空间，但不写入
+    reserve = c.MDBX_RESERVE,
 
-    // PutAppend Append the data to the end of the database.
-    Append = c.MDBX_APPEND,
+    /// 将数据追加到数据库末尾
+    append = c.MDBX_APPEND,
 
-    // PutAppendDup Append the data to the end of the database.
-    AppendDup = c.MDBX_APPENDDUP,
+    /// 将数据追加到数据库末尾
+    append_dup = c.MDBX_APPENDDUP,
 
-    // PutMultiple Only for ref MDBX_DUPFIXED.
-    // Store multiple data items in one call.
-    Multiple = c.MDBX_MULTIPLE,
+    /// 仅用于 MDBX_DUPFIXED，在一次调用中存储多个数据项
+    multiple = c.MDBX_MULTIPLE,
 };
 
+/// 事务信息
 pub const TxInfo = c.MDBX_txn_info;
 
-env: *c.MDBX_env,
-txn: *c.MDBX_txn,
+/// 事务句柄
+pub const Txn = struct {
+    env: *c.MDBX_env,
+    txn: ?*c.MDBX_txn,
 
-const Self = @This();
+    const Self = @This();
 
-// Info Return information about the MDBX transaction.
-pub fn Info(self: *Self) !*TxInfo {
-    var info: *TxInfo = undefined;
-    const rc = c.mdbx_txn_info(self.txn, &info, true);
-    if (rc != 0) {
-        return error.MDBXError{ .code = rc };
+    /// 创建新事务
+    pub fn init(env: *c.MDBX_env, parent: ?*c.MDBX_txn, flags: TxFlags) errors.MDBXError!Self {
+        var txn: ?*c.MDBX_txn = null;
+        const rc = c.mdbx_txn_begin(env, parent, @intFromEnum(flags), &txn);
+        try errors.checkError(rc);
+        return Self{
+            .env = env,
+            .txn = txn,
+        };
     }
-    return info;
-}
 
-pub fn commit(self: *Self) !void {
-    const rc = c.mdbx_txn_commit(self.txn);
-    if (rc != 0) {
-        return error.MDBXError{ .code = rc };
+    /// 获取事务信息
+    pub fn info(self: *Self) errors.MDBXError!TxInfo {
+        var tx_info: TxInfo = undefined;
+        const rc = c.mdbx_txn_info(self.txn, &tx_info, true);
+        try errors.checkError(rc);
+        return tx_info;
     }
-}
 
-pub fn abort(self: *Self) !void {
-    const rc = c.mdbx_txn_abort(self.txn);
-    if (rc != 0) {
-        return error.MDBXError{ .code = rc };
+    /// 提交事务
+    pub fn commit(self: *Self) errors.MDBXError!void {
+        const rc = c.mdbx_txn_commit(self.txn);
+        self.txn = null; // 提交后事务句柄失效
+        try errors.checkError(rc);
     }
-}
 
-// Break Marks transaction as broken.
-// ingroup c_transactions
-//
-// Function keeps the transaction handle and corresponding locks, but makes
-// impossible to perform any operations within a broken transaction.
-// Broken transaction must then be aborted explicitly later.
-//
-// param [in] txn  A transaction handle returned by ref mdbx_txn_begin().
-//
-// see mdbx_txn_abort() see mdbx_txn_reset() see mdbx_txn_commit()
-// returns A non-zero error value on failure and 0 on success.
-pub fn TxBreak(self: *Self) !void {
-    const rc = c.mdbx_txn_break(self.txn);
-    if (rc != 0) {
-        return error.MDBXError{ .code = rc };
+    /// 中止事务
+    pub fn abort(self: *Self) void {
+        if (self.txn) |tx| {
+            _ = c.mdbx_txn_abort(tx);
+            self.txn = null;
+        }
     }
-}
 
-pub fn reset(self: *Self) !void {
-    const rc = c.mdbx_txn_reset(self.txn);
-    if (rc != 0) {
-        return error.MDBXError{ .code = rc };
+    /// 将事务标记为损坏
+    ///
+    /// 该函数保留事务句柄和相应的锁，但使得在损坏的事务中无法执行任何操作。
+    /// 损坏的事务必须在之后显式中止。
+    pub fn markBroken(self: *Self) errors.MDBXError!void {
+        const rc = c.mdbx_txn_break(self.txn);
+        try errors.checkError(rc);
     }
-}
 
-pub fn renew(self: *Self) !void {
-    const rc = c.mdbx_txn_renew(self.txn);
-    if (rc != 0) {
-        return error.MDBXError{ .code = rc };
+    /// 重置只读事务
+    pub fn reset(self: *Self) errors.MDBXError!void {
+        const rc = c.mdbx_txn_reset(self.txn);
+        try errors.checkError(rc);
     }
-}
 
-pub fn openDBI(self: *Self, name: []const u8, flags: env.DBFlags) !env.DBI {
-    var dbi: env.DBI = undefined;
-    const rc = c.mdbx_dbi_open(self.txn, name, flags, &dbi);
-    if (rc != 0) {
-        return error.MDBXError{ .code = rc };
+    /// 续订只读事务
+    pub fn renew(self: *Self) errors.MDBXError!void {
+        const rc = c.mdbx_txn_renew(self.txn);
+        try errors.checkError(rc);
     }
-    return dbi;
-}
 
-pub fn get(self: *Self, dbi: env.DBI, key: []const u8) ![]const u8 {
-    var val: []const u8 = undefined;
-    const rc = c.mdbx_get(self.txn, dbi, key, &val);
-    if (rc != 0) {
-        return error.MDBXError{ .code = rc };
+    /// 打开数据库实例
+    pub fn openDBI(self: *Self, name: ?[*:0]const u8, flags: Env.DBFlags) errors.MDBXError!Env.DBI {
+        var dbi: Env.DBI = undefined;
+        const rc = c.mdbx_dbi_open(self.txn, name, @intFromEnum(flags), &dbi);
+        try errors.checkError(rc);
+        return dbi;
     }
-    return val;
-}
+
+    /// 从数据库获取数据
+    pub fn get(self: *Self, dbi: Env.DBI, key: []const u8) errors.MDBXError![]const u8 {
+        var key_val = c.MDBX_val{
+            .iov_base = @constCast(@ptrCast(key.ptr)),
+            .iov_len = key.len,
+        };
+        var data_val: c.MDBX_val = undefined;
+
+        const rc = c.mdbx_get(self.txn, dbi, &key_val, &data_val);
+        try errors.checkError(rc);
+
+        const data_ptr: [*]const u8 = @ptrCast(data_val.iov_base);
+        return data_ptr[0..data_val.iov_len];
+    }
+
+    /// 存储数据到数据库
+    pub fn put(
+        self: *Self,
+        dbi: Env.DBI,
+        key: []const u8,
+        data: []const u8,
+        flags: PutFlags
+    ) errors.MDBXError!void {
+        var key_val = c.MDBX_val{
+            .iov_base = @constCast(@ptrCast(key.ptr)),
+            .iov_len = key.len,
+        };
+        var data_val = c.MDBX_val{
+            .iov_base = @constCast(@ptrCast(data.ptr)),
+            .iov_len = data.len,
+        };
+
+        const rc = c.mdbx_put(self.txn, dbi, &key_val, &data_val, @intFromEnum(flags));
+        try errors.checkError(rc);
+    }
+
+    /// 从数据库删除数据
+    pub fn del(self: *Self, dbi: Env.DBI, key: []const u8, data: ?[]const u8) errors.MDBXError!void {
+        var key_val = c.MDBX_val{
+            .iov_base = @constCast(@ptrCast(key.ptr)),
+            .iov_len = key.len,
+        };
+
+        var data_ptr: ?*c.MDBX_val = null;
+        var data_val: c.MDBX_val = undefined;
+        if (data) |d| {
+            data_val = c.MDBX_val{
+                .iov_base = @constCast(@ptrCast(d.ptr)),
+                .iov_len = d.len,
+            };
+            data_ptr = &data_val;
+        }
+
+        const rc = c.mdbx_del(self.txn, dbi, &key_val, data_ptr);
+        try errors.checkError(rc);
+    }
+};

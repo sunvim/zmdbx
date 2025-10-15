@@ -27,13 +27,13 @@ pub fn setupHighPerformanceLog() !zmdbx.Env {
     try env.setOption(.OptDpReserveLimit, 8192); // 脏页预留池 8x (8K 页)
     try env.setOption(.OptLooseLimit, 128); // 松散页缓存 2x (128 页)
 
-    // 3. 同步策略 (容忍30秒数据丢失)
-    try env.setSyncBytes(64 * 1024 * 1024); // 每 64MB 数据触发一次同步
-    try env.setSyncPeriod(30 * 65536); // 每 30 秒触发一次同步
-
-    // 4. 打开环境 (WRITE_MAP + SAFE_NOSYNC)
+    // 3. 打开环境 (WRITE_MAP + SAFE_NOSYNC)
     try env.open("./log.mdbx", .write_map, 0o755);
     try env.setFlags(.safe_no_sync, true);
+
+    // 4. 同步策略 (容忍30秒数据丢失)
+    try env.setSyncBytes(64 * 1024 * 1024); // 每 64MB 数据触发一次同步
+    try env.setSyncPeriod(30 * 65536); // 每 30 秒触发一次同步
 
     return env;
 }

@@ -20,7 +20,7 @@
 1. 将 zmdbx 添加到你的项目：
 
 ```bash
-zig fetch --save https://github.com/your-repo/zmdbx/archive/main.tar.gz
+zig fetch --save https://github.com/sunvim/zmdbx/archive/main.tar.gz
 ```
 
 2. 在 `build.zig` 中添加依赖：
@@ -39,7 +39,7 @@ exe.root_module.addImport("zmdbx", zmdbx.module("zmdbx"));
 1. 克隆仓库并初始化子模块：
 
 ```bash
-git clone https://github.com/your-repo/zmdbx.git
+git clone https://github.com/sunvim/zmdbx.git
 cd zmdbx
 git submodule update --init --recursive
 ```

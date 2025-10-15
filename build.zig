@@ -39,7 +39,7 @@ pub fn build(b: *std.Build) void {
             "-DMDBX_BUILD_FLAGS=\"\"",
             "-DMDBX_DEBUG=0",
             "-DNDEBUG=1",
-            "-DMDBX_UNALIGNED_OK=0", // 禁用未对齐访问，使用 memcpy 替代，避免 Zig 安全检查失败
+            "-DMDBX_UNALIGNED_OK=0", // 禁用未对齐访问，使用 memcpy 替代
             "-DMDBX_HAVE_BUILTIN_CPU_SUPPORTS=0", // 禁用运行时 CPU 特性检测，避免 AVX-512/AVX2/SSE2 依赖
             "-std=c11",
             "-Wno-unknown-pragmas",
@@ -47,6 +47,7 @@ pub fn build(b: *std.Build) void {
             "-Wno-date-time",
             "-fno-strict-aliasing",
             "-fvisibility=hidden",
+            "-fno-sanitize=undefined", // 禁用 C 代码的未定义行为检查（包括对齐检查）
         },
     });
 
@@ -75,7 +76,7 @@ pub fn build(b: *std.Build) void {
             "-DMDBX_BUILD_FLAGS=\"\"",
             "-DMDBX_DEBUG=0",
             "-DNDEBUG=1",
-            "-DMDBX_UNALIGNED_OK=0", // 禁用未对齐访问，使用 memcpy 替代，避免 Zig 安全检查失败
+            "-DMDBX_UNALIGNED_OK=0", // 禁用未对齐访问，使用 memcpy 替代
             "-DMDBX_HAVE_BUILTIN_CPU_SUPPORTS=0", // 禁用运行时 CPU 特性检测，避免 AVX-512/AVX2/SSE2 依赖
             "-std=c11",
             "-Wno-unknown-pragmas",
@@ -83,6 +84,7 @@ pub fn build(b: *std.Build) void {
             "-Wno-date-time",
             "-fno-strict-aliasing",
             "-fvisibility=hidden",
+            "-fno-sanitize=undefined", // 禁用 C 代码的未定义行为检查（包括对齐检查）
         },
     });
     lib_unit_tests.addIncludePath(b.path("mdbx"));

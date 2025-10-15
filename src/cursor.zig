@@ -1,6 +1,5 @@
 const std = @import("std");
-const c_import = @import("c.zig");
-const c = c_import.c;
+const c = @import("c.zig").c;
 
 const errors = @import("errors.zig");
 const Env = @import("env.zig");
@@ -99,14 +98,14 @@ pub const Cursor = struct {
 
         if (key) |k| {
             key_val = c.MDBX_val{
-                .iov_base = @constCast(@ptrCast(k.ptr)),
+                .iov_base = @ptrCast(@constCast(k.ptr)),
                 .iov_len = k.len,
             };
         }
 
         if (data) |d| {
             data_val = c.MDBX_val{
-                .iov_base = @constCast(@ptrCast(d.ptr)),
+                .iov_base = @ptrCast(@constCast(d.ptr)),
                 .iov_len = d.len,
             };
         }
@@ -134,11 +133,11 @@ pub const Cursor = struct {
         flags: c.MDBX_put_flags_t,
     ) errors.MDBXError!void {
         var key_val = c.MDBX_val{
-            .iov_base = @constCast(@ptrCast(key.ptr)),
+            .iov_base = @ptrCast(@constCast(key.ptr)),
             .iov_len = key.len,
         };
         var data_val = c.MDBX_val{
-            .iov_base = @constCast(@ptrCast(data.ptr)),
+            .iov_base = @ptrCast(@constCast(data.ptr)),
             .iov_len = data.len,
         };
 

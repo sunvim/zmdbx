@@ -1,5 +1,4 @@
-const c_import = @import("c.zig");
-const c = c_import.c;
+const c = @import("c.zig").c;
 
 /// MDBX 错误类型
 pub const MDBXError = error{

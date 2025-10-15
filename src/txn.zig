@@ -1,6 +1,5 @@
 const std = @import("std");
-const c_import = @import("c.zig");
-const c = c_import.c;
+const c = @import("c.zig").c;
 
 const errors = @import("errors.zig");
 const Env = @import("env.zig");
@@ -143,7 +142,7 @@ pub const Txn = struct {
     /// 从数据库获取数据
     pub fn get(self: *Self, dbi: Env.DBI, key: []const u8) errors.MDBXError![]const u8 {
         var key_val = c.MDBX_val{
-            .iov_base = @constCast(@ptrCast(key.ptr)),
+            .iov_base = @ptrCast(@constCast(key.ptr)),
             .iov_len = key.len,
         };
         var data_val: c.MDBX_val = undefined;
@@ -156,19 +155,13 @@ pub const Txn = struct {
     }
 
     /// 存储数据到数据库
-    pub fn put(
-        self: *Self,
-        dbi: Env.DBI,
-        key: []const u8,
-        data: []const u8,
-        flags: PutFlags
-    ) errors.MDBXError!void {
+    pub fn put(self: *Self, dbi: Env.DBI, key: []const u8, data: []const u8, flags: PutFlags) errors.MDBXError!void {
         var key_val = c.MDBX_val{
-            .iov_base = @constCast(@ptrCast(key.ptr)),
+            .iov_base = @ptrCast(@constCast(key.ptr)),
             .iov_len = key.len,
         };
         var data_val = c.MDBX_val{
-            .iov_base = @constCast(@ptrCast(data.ptr)),
+            .iov_base = @ptrCast(@constCast(data.ptr)),
             .iov_len = data.len,
         };
 
@@ -179,7 +172,7 @@ pub const Txn = struct {
     /// 从数据库删除数据
     pub fn del(self: *Self, dbi: Env.DBI, key: []const u8, data: ?[]const u8) errors.MDBXError!void {
         var key_val = c.MDBX_val{
-            .iov_base = @constCast(@ptrCast(key.ptr)),
+            .iov_base = @ptrCast(@constCast(key.ptr)),
             .iov_len = key.len,
         };
 
@@ -187,7 +180,7 @@ pub const Txn = struct {
         var data_val: c.MDBX_val = undefined;
         if (data) |d| {
             data_val = c.MDBX_val{
-                .iov_base = @constCast(@ptrCast(d.ptr)),
+                .iov_base = @ptrCast(@constCast(d.ptr)),
                 .iov_len = d.len,
             };
             data_ptr = &data_val;

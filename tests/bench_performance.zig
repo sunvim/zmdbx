@@ -50,7 +50,30 @@ pub fn main() !void {
     // 6. 批量删除测试
     try benchBulkDeletes(allocator);
 
-    std.debug.print("\n✓ 所有压测完成！\n\n", .{});
+    std.debug.print("\n✓ 所有压测完成！\n", .{});
+
+    // 清理测试数据
+    std.debug.print("\n正在清理测试数据...\n", .{});
+    cleanupTestData();
+    std.debug.print("✓ 测试数据清理完成！\n\n", .{});
+}
+
+/// 清理所有测试生成的数据库目录
+fn cleanupTestData() void {
+    const test_paths = [_][]const u8{
+        "./bench_db_seq_write",
+        "./bench_db_rand_write",
+        "./bench_db_seq_read",
+        "./bench_db_rand_read",
+        "./bench_db_mixed",
+        "./bench_db_deletes",
+    };
+
+    for (test_paths) |path| {
+        std.fs.cwd().deleteTree(path) catch |err| {
+            std.debug.print("  警告: 删除 {s} 失败: {}\n", .{ path, err });
+        };
+    }
 }
 
 fn benchSequentialWrites(allocator: std.mem.Allocator) !void {
@@ -84,7 +107,7 @@ fn benchSequentialWrites(allocator: std.mem.Allocator) !void {
         const key = try std.fmt.allocPrint(allocator, "key:{d:0>10}", .{i});
         defer allocator.free(key);
 
-        const value = try std.fmt.allocPrint(allocator, "value_{d}_abcdefghijklmnopqrstuvwxyz", .{i});
+        const value = try std.fmt.allocPrint(allocator, "value_{d}_data", .{i});
         defer allocator.free(value);
 
         try txn.put(dbi, key, value, .upsert);
@@ -121,7 +144,7 @@ fn benchRandomWrites(allocator: std.mem.Allocator) !void {
 
     try env.open(test_path, .defaults, 0o755);
 
-    const num_ops = 50000;
+    const num_ops = 100000;
     const start = std.time.milliTimestamp();
 
     var prng = std.Random.DefaultPrng.init(@intCast(std.time.timestamp()));
@@ -135,10 +158,10 @@ fn benchRandomWrites(allocator: std.mem.Allocator) !void {
     var i: usize = 0;
     while (i < num_ops) : (i += 1) {
         const rand_id = random.intRangeAtMost(usize, 0, 1000000);
-        const key = try std.fmt.allocPrint(allocator, "rkey:{d:0>10}", .{rand_id});
+        const key = try std.fmt.allocPrint(allocator, "key:{d:0>10}", .{rand_id});
         defer allocator.free(key);
 
-        const value = try std.fmt.allocPrint(allocator, "rvalue_{d}", .{rand_id});
+        const value = try std.fmt.allocPrint(allocator, "value_{d}_data", .{rand_id});
         defer allocator.free(value);
 
         try txn.put(dbi, key, value, .upsert);
@@ -150,7 +173,7 @@ fn benchRandomWrites(allocator: std.mem.Allocator) !void {
     const ops_per_sec = @divTrunc(num_ops * 1000, @as(usize, @intCast(elapsed)));
 
     printResult(.{
-        .name = "随机写入 (5万条)",
+        .name = "随机写入 (10万条)",
         .operations = num_ops,
         .elapsed_ms = elapsed,
         .ops_per_sec = ops_per_sec,

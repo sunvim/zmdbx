@@ -50,6 +50,7 @@ pub fn build(b: *std.Build) void {
     });
 
     lib.addIncludePath(b.path("mdbx"));
+    lib.linkLibC(); // 链接 C 标准库以提供 errno.h 等头文件
 
     // This declares intent for the library to be installed into the standard
     // location when the user invokes the "install" step (the default step when
@@ -83,6 +84,7 @@ pub fn build(b: *std.Build) void {
         },
     });
     lib_unit_tests.addIncludePath(b.path("mdbx"));
+    lib_unit_tests.linkLibC(); // 链接 C 标准库
 
     const run_lib_unit_tests = b.addRunArtifact(lib_unit_tests);
 

@@ -1,6 +1,5 @@
 const std = @import("std");
-const c_import = @import("c.zig");
-const c = c_import.c;
+const c = @import("c.zig").c;
 
 const errors = @import("errors.zig");
 const Option = @import("opt.zig").Option;

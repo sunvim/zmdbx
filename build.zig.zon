@@ -1,11 +1,14 @@
 .{
-    .name = "zmdbx",
+    .name = .zmdbx,
     .version = "0.1.0",
+    .fingerprint = 0xfac7b37a91e56ceb,
+    .minimum_zig_version = "0.15.2",
     .dependencies = .{},
     .paths = .{
         "build.zig",
         "build.zig.zon",
         "src",
+        "mdbx",
         "LICENSE",
         "README.md",
     },

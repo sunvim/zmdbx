@@ -1,6 +1,5 @@
-const c = @cImport({
-    @cInclude("mdbx.h");
-});
+const c_import = @import("c.zig");
+const c = c_import.c;
 
 pub const Option = enum(c.enum_MDBX_option_t) {
     // OptMaxDB brief Controls the maximum number of named databases for the environment.

@@ -1,2 +1,25 @@
 .zig-cache/
 zig-out/
+.DS_Store
+.claude/
+.vscode/
+.idea/
+*.log
+*.tmp
+*.swp
+*.bak
+*.old
+*.exe
+*.o
+*.obj
+*.dll
+*.so
+*.dylib
+*.class
+*.a
+.bmad-core/
+.serena/
+
+# Benchmark generated databases
+bench_db_*/
+bench_performance

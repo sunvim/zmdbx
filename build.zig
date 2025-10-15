@@ -39,7 +39,8 @@ pub fn build(b: *std.Build) void {
             "-DMDBX_BUILD_FLAGS=\"\"",
             "-DMDBX_DEBUG=0",
             "-DNDEBUG=1",
-            "-DMDBX_UNALIGNED_OK=0", // 禁用未对齐访问以避免 macOS 崩溃
+            "-DMDBX_UNALIGNED_OK=0", // 禁用未对齐访问，使用 memcpy 替代，避免 Zig 安全检查失败
+            "-DMDBX_HAVE_BUILTIN_CPU_SUPPORTS=0", // 禁用运行时 CPU 特性检测，避免 AVX-512/AVX2/SSE2 依赖
             "-std=c11",
             "-Wno-unknown-pragmas",
             "-Wno-expansion-to-defined",
@@ -74,7 +75,8 @@ pub fn build(b: *std.Build) void {
             "-DMDBX_BUILD_FLAGS=\"\"",
             "-DMDBX_DEBUG=0",
             "-DNDEBUG=1",
-            "-DMDBX_UNALIGNED_OK=0", // 禁用未对齐访问以避免 macOS 崩溃
+            "-DMDBX_UNALIGNED_OK=0", // 禁用未对齐访问，使用 memcpy 替代，避免 Zig 安全检查失败
+            "-DMDBX_HAVE_BUILTIN_CPU_SUPPORTS=0", // 禁用运行时 CPU 特性检测，避免 AVX-512/AVX2/SSE2 依赖
             "-std=c11",
             "-Wno-unknown-pragmas",
             "-Wno-expansion-to-defined",

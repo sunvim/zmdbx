@@ -57,7 +57,7 @@ pub const EnvFlag = enum {
     utterly_no_sync,
 
     /// 转换为 C API 标志值
-    pub fn toInt(self: EnvFlag) c.MDBX_env_flags_t {
+    pub inline fn toInt(self: EnvFlag) c.MDBX_env_flags_t {
         return switch (self) {
             .validation => c.MDBX_VALIDATION,
             .no_sub_dir => c.MDBX_NOSUBDIR,
@@ -84,7 +84,7 @@ pub const EnvFlag = enum {
 pub const EnvFlagSet = std.EnumSet(EnvFlag);
 
 /// 将标志集合转换为 C API 使用的位掩码
-pub fn envFlagsToInt(flags: EnvFlagSet) c.MDBX_env_flags_t {
+pub inline fn envFlagsToInt(flags: EnvFlagSet) c.MDBX_env_flags_t {
     if (flags.count() == 0) {
         return c.MDBX_ENV_DEFAULTS;
     }
@@ -123,7 +123,7 @@ pub const DBFlag = enum {
     /// 接受现有数据库
     db_accede,
 
-    pub fn toInt(self: DBFlag) c.MDBX_db_flags_t {
+    pub inline fn toInt(self: DBFlag) c.MDBX_db_flags_t {
         return switch (self) {
             .reverse_key => c.MDBX_REVERSEKEY,
             .dup_sort => c.MDBX_DUPSORT,
@@ -139,7 +139,7 @@ pub const DBFlag = enum {
 
 pub const DBFlagSet = std.EnumSet(DBFlag);
 
-pub fn dbFlagsToInt(flags: DBFlagSet) c.MDBX_db_flags_t {
+pub inline fn dbFlagsToInt(flags: DBFlagSet) c.MDBX_db_flags_t {
     if (flags.count() == 0) {
         return c.MDBX_DB_DEFAULTS;
     }
@@ -169,7 +169,7 @@ pub const TxFlag = enum {
     /// 仅此事务不同步
     no_sync,
 
-    pub fn toInt(self: TxFlag) c.MDBX_txn_flags_t {
+    pub inline fn toInt(self: TxFlag) c.MDBX_txn_flags_t {
         return switch (self) {
             .read_only => c.MDBX_TXN_RDONLY,
             .read_only_prepare => c.MDBX_TXN_RDONLY_PREPARE,
@@ -182,7 +182,7 @@ pub const TxFlag = enum {
 
 pub const TxFlagSet = std.EnumSet(TxFlag);
 
-pub fn txFlagsToInt(flags: TxFlagSet) c.MDBX_txn_flags_t {
+pub inline fn txFlagsToInt(flags: TxFlagSet) c.MDBX_txn_flags_t {
     if (flags.count() == 0) {
         return c.MDBX_TXN_READWRITE; // 默认读写事务
     }
@@ -221,7 +221,7 @@ pub const PutFlag = enum {
     /// 存储多个数据项（仅用于 MDBX_DUPFIXED）
     multiple,
 
-    pub fn toInt(self: PutFlag) c.MDBX_put_flags_t {
+    pub inline fn toInt(self: PutFlag) c.MDBX_put_flags_t {
         return switch (self) {
             .no_overwrite => c.MDBX_NOOVERWRITE,
             .no_dup_data => c.MDBX_NODUPDATA,
@@ -237,7 +237,7 @@ pub const PutFlag = enum {
 
 pub const PutFlagSet = std.EnumSet(PutFlag);
 
-pub fn putFlagsToInt(flags: PutFlagSet) c.MDBX_put_flags_t {
+pub inline fn putFlagsToInt(flags: PutFlagSet) c.MDBX_put_flags_t {
     if (flags.count() == 0) {
         return c.MDBX_UPSERT; // 默认更新插入
     }
@@ -258,7 +258,7 @@ pub const CopyFlag = enum {
     /// 强制动态大小
     force_dynamic_size,
 
-    pub fn toInt(self: CopyFlag) c.MDBX_copy_flags_t {
+    pub inline fn toInt(self: CopyFlag) c.MDBX_copy_flags_t {
         return switch (self) {
             .compact => c.MDBX_CP_COMPACT,
             .force_dynamic_size => c.MDBX_CP_FORCE_DYNAMIC_SIZE,
@@ -268,7 +268,7 @@ pub const CopyFlag = enum {
 
 pub const CopyFlagSet = std.EnumSet(CopyFlag);
 
-pub fn copyFlagsToInt(flags: CopyFlagSet) c.MDBX_copy_flags_t {
+pub inline fn copyFlagsToInt(flags: CopyFlagSet) c.MDBX_copy_flags_t {
     if (flags.count() == 0) {
         return c.MDBX_CP_DEFAULTS;
     }

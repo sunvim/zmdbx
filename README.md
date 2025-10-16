@@ -41,7 +41,6 @@ exe.root_module.addImport("zmdbx", zmdbx.module("zmdbx"));
 ```bash
 git clone https://github.com/sunvim/zmdbx.git
 cd zmdbx
-git submodule update --init --recursive
 ```
 
 2. 构建库：
@@ -62,21 +61,24 @@ pub fn main() !void {
     defer env.deinit();
 
     // 2. 打开数据库
-    try env.open("./mydb", .defaults, 0o644);
+    try env.open("./mydb", zmdbx.EnvFlagSet.init(.{}), 0o644);
 
-    // 3. 开始事务
-    var txn = try env.beginTxn(null, .read_write);
+    // 3. 开始写事务 (新API: beginWriteTxn)
+    var txn = try env.beginWriteTxn();
     defer txn.abort(); // 确保异常时中止
 
     // 4. 打开数据库实例
-    const dbi = try txn.openDBI(null, .create);
+    var db_flags = zmdbx.DBFlagSet.init(.{});
+    db_flags.insert(.create);
+    const dbi = try txn.openDBI(null, db_flags);
 
     // 5. 写入数据
-    try txn.put(dbi, "name", "张三", .upsert);
-    try txn.put(dbi, "age", "25", .upsert);
+    const put_flags = zmdbx.PutFlagSet.init(.{});
+    try txn.put(dbi, "name", "张三", put_flags);
+    try txn.put(dbi, "age", "25", put_flags);
 
-    // 6. 读取数据
-    const name = try txn.get(dbi, "name");
+    // 6. 读取数据 (新API: getBytes)
+    const name = try txn.getBytes(dbi, "name");
     std.debug.print("name: {s}\n", .{name});
 
     // 7. 提交事务
@@ -85,6 +87,11 @@ pub fn main() !void {
 ```
 
 ## 📚 文档
+
+**快速导航：**
+- 📖 [API 速查表](docs/API_CHEATSHEET.md) - 常用 API 快速参考
+- 🔄 [迁移指南](docs/MIGRATION.md) - 从旧版本升级指南
+- 📊 [性能基准](BENCHMARKS.md) - 详细性能测试结果
 
 ### 核心概念
 
@@ -114,13 +121,17 @@ try env.open("./mydb", .defaults, 0o644);
 事务提供 ACID 保证：
 
 ```zig
-// 读写事务
-var write_txn = try env.beginTxn(null, .read_write);
+// 读写事务 (新API: 更简洁的方法)
+var write_txn = try env.beginWriteTxn();
 defer write_txn.abort();
 
-// 只读事务
-var read_txn = try env.beginTxn(null, .read_only);
+// 只读事务 (新API: 更简洁的方法)
+var read_txn = try env.beginReadTxn();
 defer read_txn.abort();
+
+// 或使用传统方式
+var txn = try env.beginTxn(null, zmdbx.TxFlagSet.init(.{ .read_write = true }));
+defer txn.abort();
 ```
 
 #### 游标 (Cursor)
@@ -142,6 +153,62 @@ while (true) {
 }
 ```
 
+### 高级 API
+
+#### EnvBuilder (构建器模式)
+
+使用构建器模式配置和创建环境：
+
+```zig
+var env = try zmdbx.EnvBuilder.init()
+    .setMaxdbs(10)
+    .setGeometry(.{
+        .lower = 1024 * 1024,
+        .now = 10 * 1024 * 1024,
+        .upper = 100 * 1024 * 1024,
+        .growth_step = 1024 * 1024,
+        .shrink_threshold = -1,
+        .pagesize = -1,
+    })
+    .build("./mydb", zmdbx.EnvFlagSet.init(.{}), 0o644);
+defer env.deinit();
+```
+
+#### TxnGuard (自动提交/中止)
+
+自动管理事务生命周期：
+
+```zig
+// 使用 withReadTxn 进行只读操作
+const result = try env.withReadTxn(struct {
+    fn read(txn: *zmdbx.Txn, dbi: zmdbx.DBI) ![]const u8 {
+        return try txn.getBytes(dbi, "key");
+    }
+}.read, dbi);
+
+// 使用 withWriteTxn 进行写操作
+try env.withWriteTxn(struct {
+    fn write(txn: *zmdbx.Txn, dbi: zmdbx.DBI) !void {
+        const put_flags = zmdbx.PutFlagSet.init(.{});
+        try txn.put(dbi, "key", "value", put_flags);
+    }
+}.write, dbi);
+```
+
+#### Database (高层抽象)
+
+简化的数据库操作接口：
+
+```zig
+var db = try zmdbx.Database.open("./mydb");
+defer db.close();
+
+// 直接进行读写操作
+try db.put("key", "value");
+const value = try db.get("key");
+try db.delete("key");
+```
+
 ### API 参考
 
 #### Env (环境)
@@ -153,7 +220,13 @@ while (true) {
 | `open(path, flags, mode)` | 打开数据库 |
 | `setGeometry(geo)` | 设置数据库几何参数 |
 | `setMaxdbs(n)` | 设置最大数据库数量 |
-| `beginTxn(parent, flags)` | 开始新事务 |
+| `beginTxn(parent, flags)` | 开始新事务 (传统方式) |
+| `beginReadTxn()` | **新增** 开始只读事务 (便捷方法) |
+| `beginWriteTxn()` | **新增** 开始读写事务 (便捷方法) |
+| `withReadTxn(fn, args)` | **新增** 自动管理只读事务 |
+| `withWriteTxn(fn, args)` | **新增** 自动管理写事务 |
+| `setOption(option, value)` | 设置环境选项 |
+| `getOption(option)` | 获取环境选项 |
 
 #### Txn (事务)
 
@@ -163,7 +236,8 @@ while (true) {
 | `commit()` | 提交事务 |
 | `abort()` | 中止事务 |
 | `openDBI(name, flags)` | 打开数据库实例 |
-| `get(dbi, key)` | 获取数据 |
+| `get(dbi, key)` | 获取数据 (返回 Val) |
+| `getBytes(dbi, key)` | **新增** 获取数据 (返回 []const u8) |
 | `put(dbi, key, data, flags)` | 写入数据 |
 | `del(dbi, key, data)` | 删除数据 |
 
@@ -177,18 +251,79 @@ while (true) {
 | `put(key, data, flags)` | 写入数据 |
 | `del(flags)` | 删除当前项 |
 
+### 类型安全标志系统
+
+zmdbx 提供了类型安全的标志集合,避免了手动管理位标志的错误:
+
+#### EnvFlagSet (环境标志)
+
+```zig
+var env_flags = zmdbx.EnvFlagSet.init(.{});
+env_flags.insert(.validation);      // 开启验证
+env_flags.insert(.no_sub_dir);      // 不使用子目录
+env_flags.remove(.validation);      // 移除验证标志
+
+// 检查标志
+if (env_flags.contains(.no_sub_dir)) {
+    // ...
+}
+```
+
+#### DBFlagSet (数据库标志)
+
+```zig
+var db_flags = zmdbx.DBFlagSet.init(.{});
+db_flags.insert(.create);           // 如果不存在则创建
+db_flags.insert(.dup_sort);         // 允许重复键(排序)
+```
+
+#### TxFlagSet (事务标志)
+
+```zig
+var tx_flags = zmdbx.TxFlagSet.init(.{});
+tx_flags.insert(.read_write);       // 读写事务
+tx_flags.insert(.try_flag);         // 尝试获取锁
+```
+
+#### PutFlagSet (写入标志)
+
+```zig
+var put_flags = zmdbx.PutFlagSet.init(.{});
+put_flags.insert(.no_overwrite);    // 不覆盖已存在的键
+put_flags.insert(.append);          // 追加到末尾(性能优化)
+```
+
 ## 📖 示例
 
 查看 `examples/` 目录获取完整示例：
 
-- **basic_usage.zig** - 基本使用示例
+- **basic_usage.zig** - 基本使用示例 (使用最新API)
 - **cursor_usage.zig** - 游标遍历示例
 - **batch_operations.zig** - 批量操作示例
+- **high_performance_config.zig** - 高性能配置示例
 
-运行示例：
+### 运行示例
+
+使用项目依赖运行示例：
 
 ```bash
-zig build-exe examples/basic_usage.zig
+# 基本使用
+zig build run-basic
+
+# 游标使用
+zig build run-cursor
+
+# 批量操作
+zig build run-batch
+
+# 高性能配置
+zig build run-perf
+```
+
+或者手动编译运行：
+
+```bash
+zig build-exe examples/basic_usage.zig --dep zmdbx --mod zmdbx::src/mdbx.zig
 ./basic_usage
 ```
 
@@ -270,8 +405,8 @@ zig fmt src/*.zig
 
 如有问题或建议，请通过以下方式联系：
 
-- 提交 Issue: https://github.com/your-repo/zmdbx/issues
-- Email: your-email@example.com
+- 提交 Issue: https://github.com/sunvim/zmdbx/issues
+- Email: mobussun@gmail.com
 
 ---
 

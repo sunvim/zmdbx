@@ -66,7 +66,7 @@ pub const Val = struct {
     ///
     /// 返回：
     ///   Val 实例，引用传入切片的内存
-    pub fn fromBytes(data: []const u8) Self {
+    pub inline fn fromBytes(data: []const u8) Self {
         return .{
             .inner = .{
                 // 使用 @intFromPtr 和 @ptrFromInt 进行类型安全的转换
@@ -86,7 +86,7 @@ pub const Val = struct {
     ///
     /// 返回：
     ///   Val 实例，可用于接收 MDBX 写入的数据
-    pub fn fromBytesMut(data: []u8) Self {
+    pub inline fn fromBytesMut(data: []u8) Self {
         return .{
             .inner = .{
                 .iov_base = @ptrCast(data.ptr),
@@ -101,7 +101,7 @@ pub const Val = struct {
     ///
     /// 返回：
     ///   未初始化的 Val 实例
-    pub fn empty() Self {
+    pub inline fn empty() Self {
         return .{
             .inner = .{
                 .iov_base = null,
@@ -117,7 +117,7 @@ pub const Val = struct {
     ///
     /// 返回：
     ///   const 字节切片，引用 MDBX 内部内存
-    pub fn toBytes(self: Self) []const u8 {
+    pub inline fn toBytes(self: Self) []const u8 {
         if (self.inner.iov_base == null) {
             return &[_]u8{};
         }
@@ -132,7 +132,7 @@ pub const Val = struct {
     ///
     /// 返回：
     ///   可变字节切片
-    pub fn toBytesMut(self: Self) []u8 {
+    pub inline fn toBytesMut(self: Self) []u8 {
         if (self.inner.iov_base == null) {
             return &[_]u8{};
         }
@@ -146,7 +146,7 @@ pub const Val = struct {
     ///
     /// 返回：
     ///   指向内部 MDBX_val 的指针
-    pub fn asPtr(self: *Self) *c.MDBX_val {
+    pub inline fn asPtr(self: *Self) *c.MDBX_val {
         return &self.inner;
     }
 
@@ -156,7 +156,7 @@ pub const Val = struct {
     ///
     /// 返回：
     ///   指向内部 MDBX_val 的 const 指针
-    pub fn asConstPtr(self: *const Self) *const c.MDBX_val {
+    pub inline fn asConstPtr(self: *const Self) *const c.MDBX_val {
         return &self.inner;
     }
 
@@ -164,7 +164,7 @@ pub const Val = struct {
     ///
     /// 返回：
     ///   true 如果 Val 不包含数据
-    pub fn isEmpty(self: Self) bool {
+    pub inline fn isEmpty(self: Self) bool {
         return self.inner.iov_len == 0;
     }
 
@@ -172,7 +172,7 @@ pub const Val = struct {
     ///
     /// 返回：
     ///   数据字节数
-    pub fn len(self: Self) usize {
+    pub inline fn len(self: Self) usize {
         return self.inner.iov_len;
     }
 

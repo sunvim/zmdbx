@@ -217,14 +217,14 @@ pub const Env = struct {
     }
 
     /// 便利方法：开始只读事务
-    pub fn beginReadTxn(self: *Self) errors.MDBXError!Txn {
+    pub inline fn beginReadTxn(self: *Self) errors.MDBXError!Txn {
         var txflags = flags.TxFlagSet.init(.{});
         txflags.insert(.read_only);
         return self.beginTxn(null, txflags);
     }
 
     /// 便利方法：开始读写事务
-    pub fn beginWriteTxn(self: *Self) errors.MDBXError!Txn {
+    pub inline fn beginWriteTxn(self: *Self) errors.MDBXError!Txn {
         return self.beginTxn(null, flags.TxFlagSet.init(.{}));
     }
 

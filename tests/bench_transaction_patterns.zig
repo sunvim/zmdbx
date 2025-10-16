@@ -44,23 +44,39 @@ pub fn main() !void {
 
     // 测试 1: 小批量高频提交 (每 10 条提交一次)
     std.debug.print("\n【场景 1: 小批量高频提交 - 每 10 条提交一次】\n", .{});
-    try benchSmallBatch(allocator, .defaults, false, "SYNC_DURABLE");
-    try benchSmallBatch(allocator, .write_map, true, "SAFE_NOSYNC");
+    try benchSmallBatch(allocator, zmdbx.EnvFlagSet.init(.{}), false, "SYNC_DURABLE");
+    {
+        var write_map_flags = zmdbx.EnvFlagSet.init(.{});
+        write_map_flags.insert(.write_map);
+        try benchSmallBatch(allocator, write_map_flags, true, "SAFE_NOSYNC");
+    }
 
     // 测试 2: 中等批量 (每 100 条提交一次)
     std.debug.print("\n【场景 2: 中等批量 - 每 100 条提交一次】\n", .{});
-    try benchMediumBatch(allocator, .defaults, false, "SYNC_DURABLE");
-    try benchMediumBatch(allocator, .write_map, true, "SAFE_NOSYNC");
+    try benchMediumBatch(allocator, zmdbx.EnvFlagSet.init(.{}), false, "SYNC_DURABLE");
+    {
+        var write_map_flags = zmdbx.EnvFlagSet.init(.{});
+        write_map_flags.insert(.write_map);
+        try benchMediumBatch(allocator, write_map_flags, true, "SAFE_NOSYNC");
+    }
 
     // 测试 3: 大批量低频提交 (每 1000 条提交一次)
     std.debug.print("\n【场景 3: 大批量低频提交 - 每 1000 条提交一次】\n", .{});
-    try benchLargeBatch(allocator, .defaults, false, "SYNC_DURABLE");
-    try benchLargeBatch(allocator, .write_map, true, "SAFE_NOSYNC");
+    try benchLargeBatch(allocator, zmdbx.EnvFlagSet.init(.{}), false, "SYNC_DURABLE");
+    {
+        var write_map_flags = zmdbx.EnvFlagSet.init(.{});
+        write_map_flags.insert(.write_map);
+        try benchLargeBatch(allocator, write_map_flags, true, "SAFE_NOSYNC");
+    }
 
     // 测试 4: 超大批量 (10 万条一次性提交)
     std.debug.print("\n【场景 4: 超大批量 - 10 万条一次性提交】\n", .{});
-    try benchVeryLargeBatch(allocator, .defaults, false, "SYNC_DURABLE");
-    try benchVeryLargeBatch(allocator, .write_map, true, "SAFE_NOSYNC");
+    try benchVeryLargeBatch(allocator, zmdbx.EnvFlagSet.init(.{}), false, "SYNC_DURABLE");
+    {
+        var write_map_flags = zmdbx.EnvFlagSet.init(.{});
+        write_map_flags.insert(.write_map);
+        try benchVeryLargeBatch(allocator, write_map_flags, true, "SAFE_NOSYNC");
+    }
 
     std.debug.print("\n╔════════════════════════════════════════════════════════════════════════════════════════╗\n", .{});
     std.debug.print("║                                    结论分析                                            ║\n", .{});
@@ -111,7 +127,7 @@ fn cleanupTestData() void {
 /// 小批量: 每 10 条提交一次
 fn benchSmallBatch(
     allocator: std.mem.Allocator,
-    flags: zmdbx.EnvFlags,
+    flags: zmdbx.EnvFlagSet,
     use_safe_nosync: bool,
     mode_name: []const u8,
 ) !void {
@@ -137,7 +153,9 @@ fn benchSmallBatch(
 
     try env.open(test_path, flags, 0o755);
     if (use_safe_nosync) {
-        try env.setFlags(.safe_no_sync, true);
+        var flags_to_set = zmdbx.EnvFlagSet.init(.{});
+        flags_to_set.insert(.safe_no_sync);
+        try env.setFlags(flags_to_set, true);
         try env.setSyncBytes(64 * 1024 * 1024);
         try env.setSyncPeriod(30 * 65536);
     }
@@ -151,10 +169,12 @@ fn benchSmallBatch(
     var commit_count: usize = 0;
     var i: usize = 0;
     while (i < total_ops) {
-        var txn = try env.beginTxn(null, .read_write);
+        var txn = try env.beginWriteTxn();
         errdefer txn.abort();
 
-        const dbi = try txn.openDBI(null, .create);
+        var db_flags = zmdbx.DBFlagSet.init(.{});
+        db_flags.insert(.create);
+        const dbi = try txn.openDBI(null, db_flags);
 
         var batch: usize = 0;
         while (batch < batch_size and i < total_ops) : ({
@@ -167,7 +187,7 @@ fn benchSmallBatch(
             const value = try std.fmt.allocPrint(allocator, "value_{d}", .{i});
             defer allocator.free(value);
 
-            try txn.put(dbi, key, value, .upsert);
+            try txn.put(dbi, key, value, zmdbx.PutFlagSet.init(.{}));
         }
 
         try txn.commit();
@@ -192,7 +212,7 @@ fn benchSmallBatch(
 /// 中等批量: 每 100 条提交一次
 fn benchMediumBatch(
     allocator: std.mem.Allocator,
-    flags: zmdbx.EnvFlags,
+    flags: zmdbx.EnvFlagSet,
     use_safe_nosync: bool,
     mode_name: []const u8,
 ) !void {
@@ -217,7 +237,9 @@ fn benchMediumBatch(
 
     try env.open(test_path, flags, 0o755);
     if (use_safe_nosync) {
-        try env.setFlags(.safe_no_sync, true);
+        var flags_to_set = zmdbx.EnvFlagSet.init(.{});
+        flags_to_set.insert(.safe_no_sync);
+        try env.setFlags(flags_to_set, true);
         try env.setSyncBytes(64 * 1024 * 1024);
         try env.setSyncPeriod(30 * 65536);
     }
@@ -231,10 +253,12 @@ fn benchMediumBatch(
     var commit_count: usize = 0;
     var i: usize = 0;
     while (i < total_ops) {
-        var txn = try env.beginTxn(null, .read_write);
+        var txn = try env.beginWriteTxn();
         errdefer txn.abort();
 
-        const dbi = try txn.openDBI(null, .create);
+        var db_flags = zmdbx.DBFlagSet.init(.{});
+        db_flags.insert(.create);
+        const dbi = try txn.openDBI(null, db_flags);
 
         var batch: usize = 0;
         while (batch < batch_size and i < total_ops) : ({
@@ -247,7 +271,7 @@ fn benchMediumBatch(
             const value = try std.fmt.allocPrint(allocator, "value_{d}", .{i});
             defer allocator.free(value);
 
-            try txn.put(dbi, key, value, .upsert);
+            try txn.put(dbi, key, value, zmdbx.PutFlagSet.init(.{}));
         }
 
         try txn.commit();
@@ -272,7 +296,7 @@ fn benchMediumBatch(
 /// 大批量: 每 1000 条提交一次
 fn benchLargeBatch(
     allocator: std.mem.Allocator,
-    flags: zmdbx.EnvFlags,
+    flags: zmdbx.EnvFlagSet,
     use_safe_nosync: bool,
     mode_name: []const u8,
 ) !void {
@@ -293,7 +317,9 @@ fn benchLargeBatch(
 
     try env.open(test_path, flags, 0o755);
     if (use_safe_nosync) {
-        try env.setFlags(.safe_no_sync, true);
+        var flags_to_set = zmdbx.EnvFlagSet.init(.{});
+        flags_to_set.insert(.safe_no_sync);
+        try env.setFlags(flags_to_set, true);
         try env.setSyncBytes(64 * 1024 * 1024);
         try env.setSyncPeriod(30 * 65536);
     }
@@ -307,10 +333,12 @@ fn benchLargeBatch(
     var commit_count: usize = 0;
     var i: usize = 0;
     while (i < total_ops) {
-        var txn = try env.beginTxn(null, .read_write);
+        var txn = try env.beginWriteTxn();
         errdefer txn.abort();
 
-        const dbi = try txn.openDBI(null, .create);
+        var db_flags = zmdbx.DBFlagSet.init(.{});
+        db_flags.insert(.create);
+        const dbi = try txn.openDBI(null, db_flags);
 
         var batch: usize = 0;
         while (batch < batch_size and i < total_ops) : ({
@@ -323,7 +351,7 @@ fn benchLargeBatch(
             const value = try std.fmt.allocPrint(allocator, "value_{d}", .{i});
             defer allocator.free(value);
 
-            try txn.put(dbi, key, value, .upsert);
+            try txn.put(dbi, key, value, zmdbx.PutFlagSet.init(.{}));
         }
 
         try txn.commit();
@@ -348,7 +376,7 @@ fn benchLargeBatch(
 /// 超大批量: 10 万条一次性提交
 fn benchVeryLargeBatch(
     allocator: std.mem.Allocator,
-    flags: zmdbx.EnvFlags,
+    flags: zmdbx.EnvFlagSet,
     use_safe_nosync: bool,
     mode_name: []const u8,
 ) !void {
@@ -369,16 +397,20 @@ fn benchVeryLargeBatch(
 
     try env.open(test_path, flags, 0o755);
     if (use_safe_nosync) {
-        try env.setFlags(.safe_no_sync, true);
+        var flags_to_set = zmdbx.EnvFlagSet.init(.{});
+        flags_to_set.insert(.safe_no_sync);
+        try env.setFlags(flags_to_set, true);
     }
 
     const total_ops = 100000;
     const start = std.time.milliTimestamp();
 
-    var txn = try env.beginTxn(null, .read_write);
+    var txn = try env.beginWriteTxn();
     defer txn.abort();
 
-    const dbi = try txn.openDBI(null, .create);
+    var db_flags = zmdbx.DBFlagSet.init(.{});
+        db_flags.insert(.create);
+        const dbi = try txn.openDBI(null, db_flags);
 
     var i: usize = 0;
     while (i < total_ops) : (i += 1) {
@@ -388,7 +420,7 @@ fn benchVeryLargeBatch(
         const value = try std.fmt.allocPrint(allocator, "value_{d}", .{i});
         defer allocator.free(value);
 
-        try txn.put(dbi, key, value, .upsert);
+        try txn.put(dbi, key, value, zmdbx.PutFlagSet.init(.{}));
     }
 
     try txn.commit();

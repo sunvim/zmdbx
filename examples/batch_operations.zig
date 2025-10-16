@@ -24,7 +24,7 @@ pub fn main() !void {
         .pagesize = -1,
     });
 
-    try env.open("./testdb_batch", .defaults, 0o644);
+    try env.open("./testdb_batch", zmdbx.EnvFlagSet.init(.{}), 0o644);
 
     const batch_size = 10000;
 
@@ -33,10 +33,12 @@ pub fn main() !void {
     const start_insert = std.time.milliTimestamp();
 
     {
-        var txn = try env.beginTxn(null, .read_write);
+        var txn = try env.beginWriteTxn();
         defer txn.abort();
 
-        const dbi = try txn.openDBI(null, .create);
+        var db_flags = zmdbx.DBFlagSet.init(.{});
+        db_flags.insert(.create);
+        const dbi = try txn.openDBI(null, db_flags);
 
         var i: usize = 0;
         while (i < batch_size) : (i += 1) {
@@ -46,7 +48,7 @@ pub fn main() !void {
             const value = try std.fmt.allocPrint(allocator, "value_{d}", .{i});
             defer allocator.free(value);
 
-            try txn.put(dbi, key, value, .upsert);
+            try txn.put(dbi, key, value, zmdbx.PutFlagSet.init(.{}));
 
             if ((i + 1) % 1000 == 0) {
                 std.debug.print("   已插入 {d} 条...\r", .{i + 1});
@@ -65,17 +67,17 @@ pub fn main() !void {
     const start_read = std.time.milliTimestamp();
 
     {
-        var txn = try env.beginTxn(null, .read_only);
+        var txn = try env.beginReadTxn();
         defer txn.abort();
 
-        const dbi = try txn.openDBI(null, .defaults);
+        const dbi = try txn.openDBI(null, zmdbx.DBFlagSet.init(.{}));
 
         var i: usize = 0;
         while (i < batch_size) : (i += 1) {
             const key = try std.fmt.allocPrint(allocator, "key:{d:0>10}", .{i});
             defer allocator.free(key);
 
-            _ = try txn.get(dbi, key);
+            _ = try txn.getBytes(dbi, key);
 
             if ((i + 1) % 1000 == 0) {
                 std.debug.print("   已读取 {d} 条...\r", .{i + 1});
@@ -93,10 +95,10 @@ pub fn main() !void {
     const start_delete = std.time.milliTimestamp();
 
     {
-        var txn = try env.beginTxn(null, .read_write);
+        var txn = try env.beginWriteTxn();
         defer txn.abort();
 
-        const dbi = try txn.openDBI(null, .defaults);
+        const dbi = try txn.openDBI(null, zmdbx.DBFlagSet.init(.{}));
 
         var i: usize = 0;
         while (i < delete_count) : (i += 1) {

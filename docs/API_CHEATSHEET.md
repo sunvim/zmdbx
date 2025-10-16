@@ -161,6 +161,79 @@ const exists = txn.get(dbi, "key") catch |err| switch (err) {
 };
 ```
 
+### 类型化数据操作 (Val API)
+
+#### 写入数值类型
+
+```zig
+// 使用Val类型化API写入
+const age: u32 = 25;
+const score: i64 = -1000;
+const level: u8 = 5;
+
+// 创建Val并写入
+const age_val = zmdbx.Val.from_u32(age);
+try txn.put(dbi, "age", age_val.toBytes(), put_flags);
+
+// 其他支持的类型: i8, i16, i32, i64, i128, u8, u16, u32, u64, u128
+```
+
+#### 读取数值类型
+
+```zig
+// 读取并转换为特定类型
+const val = try txn.get(dbi, "age");
+const age = try val.to_u32();  // 自动验证长度
+
+// 处理错误情况
+const score_val = try txn.get(dbi, "score");
+const score = score_val.to_i64() catch |err| switch (err) {
+    error.InvalidDataLength => {
+        std.debug.print("数据长度不匹配\n", .{});
+        return err;
+    },
+    else => return err,
+};
+```
+
+#### 往返转换示例
+
+```zig
+// 类型安全的往返转换
+const original: i32 = -12345;
+
+// 转换为Val
+const val = zmdbx.Val.from_i32(original);
+
+// 存储到数据库
+try txn.put(dbi, "number", val.toBytes(), put_flags);
+
+// 从数据库读取
+const stored_val = try txn.get(dbi, "number");
+
+// 转换回i32
+const retrieved = try stored_val.to_i32();
+
+// retrieved == original  ✓
+```
+
+#### 支持的类型
+
+| 类型 | from方法 | to方法 | 示例 |
+|------|---------|--------|------|
+| i8 | `from_i8(v)` | `to_i8()` | -128 ~ 127 |
+| i16 | `from_i16(v)` | `to_i16()` | -32768 ~ 32767 |
+| i32 | `from_i32(v)` | `to_i32()` | ±21亿 |
+| i64 | `from_i64(v)` | `to_i64()` | ±922京 |
+| i128 | `from_i128(v)` | `to_i128()` | 超大整数 |
+| u8 | `from_u8(v)` | `to_u8()` | 0 ~ 255 |
+| u16 | `from_u16(v)` | `to_u16()` | 0 ~ 65535 |
+| u32 | `from_u32(v)` | `to_u32()` | 0 ~ 42亿 |
+| u64 | `from_u64(v)` | `to_u64()` | 0 ~ 1844京 |
+| u128 | `from_u128(v)` | `to_u128()` | 超大无符号整数 |
+
+⚠️ **注意**: 所有类型化方法使用原生字节序，跨架构场景需要注意兼容性。
+
 ---
 
 ## 游标遍历

@@ -233,6 +233,110 @@ pub const Env = struct {
         const rc = c.mdbx_env_delete(path, @intFromEnum(mode));
         try errors.checkError(rc);
     }
+
+    /// 高级API: 在只读事务中执行函数
+    ///
+    /// 自动管理事务生命周期，发生错误时自动回滚。
+    ///
+    /// 使用示例：
+    /// ```zig
+    /// const result = try env.withReadTxn(struct {
+    ///     fn callback(txn: *Txn) ![]const u8 {
+    ///         const dbi = try txn.openDBI(null, DBFlagSet.init(.{}));
+    ///         return try txn.getBytes(dbi, "key");
+    ///     }
+    /// }.callback);
+    /// ```
+    pub fn withReadTxn(self: *Self, comptime func: anytype) !ReturnType(func) {
+        var tx_flags = flags.TxFlagSet.init(.{});
+        tx_flags.insert(.read_only);
+        var txn = try Txn.init(self.env.?, null, tx_flags);
+        defer txn.abort();
+
+        const result = try func(&txn);
+        return result;
+    }
+
+    /// 高级API: 在读写事务中执行函数
+    ///
+    /// 自动管理事务生命周期，成功时自动提交，失败时自动回滚。
+    ///
+    /// 使用示例：
+    /// ```zig
+    /// try env.withWriteTxn(struct {
+    ///     fn callback(txn: *Txn) !void {
+    ///         const dbi = try txn.openDBI(null, DBFlagSet.init(.{ .create = true }));
+    ///         try txn.put(dbi, "key", "value", PutFlagSet.init(.{}));
+    ///     }
+    /// }.callback);
+    /// ```
+    pub fn withWriteTxn(self: *Self, comptime func: anytype) !ReturnType(func) {
+        var txn = try Txn.init(self.env.?, null, flags.TxFlagSet.init(.{}));
+        errdefer txn.abort();
+
+        const result = try func(&txn);
+        try txn.commit();
+        return result;
+    }
+
+    /// 辅助函数：获取函数的返回类型
+    fn ReturnType(comptime func: anytype) type {
+        const func_info = @typeInfo(@TypeOf(func));
+        return switch (func_info) {
+            .Fn => |f| f.return_type.?,
+            else => @compileError("Expected function type"),
+        };
+    }
+};
+
+/// Database 生命周期管理包装器
+///
+/// 自动管理 DBI 句柄的打开和关闭，防止资源泄漏。
+///
+/// 使用示例：
+/// ```zig
+/// var db = try Database.open(&env, null, DBFlagSet.init(.{ .create = true }));
+/// defer db.close();
+///
+/// var txn = try env.beginWriteTxn();
+/// defer txn.abort();
+/// try txn.put(db.dbi, "key", "value", PutFlagSet.init(.{}));
+/// try txn.commit();
+/// ```
+pub const Database = struct {
+    env: *c.MDBX_env,
+    dbi: DBI,
+    closed: bool = false,
+
+    const Self = @This();
+
+    /// 打开数据库
+    ///
+    /// 注意：此函数内部创建一个临时事务来打开数据库。
+    /// 如果在现有事务中打开数据库，请使用 Txn.openDBI() 方法。
+    pub fn open(env: *Env, name: ?[*:0]const u8, flags_set: DBFlagSet) errors.MDBXError!Self {
+        // 创建临时事务来打开数据库
+        var txn = try Txn.init(env.env.?, null, flags.TxFlagSet.init(.{}));
+        defer txn.abort();
+
+        const dbi = try txn.openDBI(name, flags_set);
+
+        // 注意：DBI 在事务提交后仍然有效
+        try txn.commit();
+
+        return Self{
+            .env = env.env.?,
+            .dbi = dbi,
+        };
+    }
+
+    /// 关闭数据库
+    pub fn close(self: *Self) void {
+        if (!self.closed) {
+            _ = c.mdbx_dbi_close(self.env, self.dbi);
+            self.closed = true;
+        }
+    }
 };
 
 // 为了向后兼容，提供旧API的便利方法

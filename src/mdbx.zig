@@ -26,6 +26,11 @@ pub const Cursor = @import("cursor.zig").Cursor;
 pub const errors = @import("errors.zig");
 pub const opt = @import("opt.zig");
 
+// 高级API导出
+pub const TxnGuard = @import("txn.zig").TxnGuard;
+pub const Database = @import("env.zig").Database;
+pub const EnvBuilder = @import("builder.zig").EnvBuilder;
+
 // 新模块导出
 pub const types = @import("types.zig");
 pub const flags = @import("flags.zig");

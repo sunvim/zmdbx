@@ -48,6 +48,13 @@ pub fn build(b: *std.Build) void {
             "-fno-strict-aliasing",
             "-fvisibility=hidden",
             "-fno-sanitize=undefined", // 禁用 C 代码的未定义行为检查（包括对齐检查）
+            // 性能优化选项
+            "-O3", // 最高级别优化
+            "-march=native", // 针对本地CPU优化
+            "-mtune=native", // 针对本地CPU调优
+            "-fomit-frame-pointer", // 省略栈帧指针
+            "-funroll-loops", // 循环展开
+            "-finline-functions", // 内联函数
         },
     });
 
@@ -85,6 +92,13 @@ pub fn build(b: *std.Build) void {
             "-fno-strict-aliasing",
             "-fvisibility=hidden",
             "-fno-sanitize=undefined", // 禁用 C 代码的未定义行为检查（包括对齐检查）
+            // 性能优化选项
+            "-O3", // 最高级别优化
+            "-march=native", // 针对本地CPU优化
+            "-mtune=native", // 针对本地CPU调优
+            "-fomit-frame-pointer", // 省略栈帧指针
+            "-funroll-loops", // 循环展开
+            "-finline-functions", // 内联函数
         },
     });
     lib_unit_tests.addIncludePath(b.path("mdbx"));
@@ -167,4 +181,24 @@ pub fn build(b: *std.Build) void {
 
     const bench_txn_step = b.step("bench-txn", "Run transaction pattern benchmarks");
     bench_txn_step.dependOn(&run_bench_txn.step);
+
+    // 添加优化版同步模式对比测试
+    const bench_sync_opt_exe = b.addExecutable(.{
+        .name = "bench_sync_modes_optimized",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("tests/bench_sync_modes_optimized.zig"),
+            .target = target,
+            .optimize = optimize,
+        }),
+    });
+
+    bench_sync_opt_exe.root_module.addImport("zmdbx", lib.root_module);
+    bench_sync_opt_exe.linkLibrary(lib);
+    b.installArtifact(bench_sync_opt_exe);
+
+    const run_bench_sync_opt = b.addRunArtifact(bench_sync_opt_exe);
+    run_bench_sync_opt.step.dependOn(b.getInstallStep());
+
+    const bench_sync_opt_step = b.step("bench-sync-opt", "Run optimized sync mode comparison benchmarks");
+    bench_sync_opt_step.dependOn(&run_bench_sync_opt.step);
 }

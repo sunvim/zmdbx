@@ -31,7 +31,7 @@ test "Error: KeyExist - duplicate key with no_overwrite" {
 
     // 第一次插入
     {
-        var txn = try env.beginTxn(null, .read_write);
+        var txn = try env.beginWriteTxn();
         defer txn.abort();
 
         const dbi = try txn.openDBI(null, .{});
@@ -41,7 +41,7 @@ test "Error: KeyExist - duplicate key with no_overwrite" {
 
     // 第二次插入相同的键，应该返回 KeyExist 错误
     {
-        var txn = try env.beginTxn(null, .read_write);
+        var txn = try env.beginWriteTxn();
         defer txn.abort();
 
         const dbi = try txn.openDBI(null, .{});
@@ -65,7 +65,7 @@ test "Error: BadTxn - operation on committed transaction" {
     try env.open(test_dir, .{}, 0o644);
     defer env.close();
 
-    var txn = try env.beginTxn(null, .read_write);
+    var txn = try env.beginWriteTxn();
     const dbi = try txn.openDBI(null, .{});
 
     // 提交事务
@@ -91,7 +91,7 @@ test "Error: Invalid - empty key" {
     try env.open(test_dir, .{}, 0o644);
     defer env.close();
 
-    var txn = try env.beginTxn(null, .read_write);
+    var txn = try env.beginWriteTxn();
     defer txn.abort();
 
     const dbi = try txn.openDBI(null, .{});
@@ -124,7 +124,7 @@ test "Error: BadValSize - key too large" {
     try env.open(test_dir, .{}, 0o644);
     defer env.close();
 
-    var txn = try env.beginTxn(null, .read_write);
+    var txn = try env.beginWriteTxn();
     defer txn.abort();
 
     const dbi = try txn.openDBI(null, .{});
@@ -214,7 +214,7 @@ test "Error: NotFound - various scenarios" {
 
     // 场景 1: 读取不存在的键
     {
-        var txn = try env.beginTxn(null, .read_only);
+        var txn = try env.beginReadTxn();
         defer txn.abort();
 
         const dbi = try txn.openDBI(null, .{});
@@ -223,7 +223,7 @@ test "Error: NotFound - various scenarios" {
 
     // 场景 2: 删除不存在的键
     {
-        var txn = try env.beginTxn(null, .read_write);
+        var txn = try env.beginWriteTxn();
         defer txn.abort();
 
         const dbi = try txn.openDBI(null, .{});
@@ -232,7 +232,7 @@ test "Error: NotFound - various scenarios" {
 
     // 场景 3: 在空数据库中使用游标
     {
-        var txn = try env.beginTxn(null, .read_only);
+        var txn = try env.beginReadTxn();
         defer txn.abort();
 
         const dbi = try txn.openDBI(null, .{});
@@ -255,7 +255,7 @@ test "Error: write operation on read-only transaction" {
     defer env.close();
 
     // 创建只读事务
-    var txn = try env.beginTxn(null, .read_only);
+    var txn = try env.beginReadTxn();
     defer txn.abort();
 
     const dbi = try txn.openDBI(null, .{});
@@ -277,7 +277,7 @@ test "Boundary: maximum key size" {
     try env.open(test_dir, .{}, 0o644);
     defer env.close();
 
-    var txn = try env.beginTxn(null, .read_write);
+    var txn = try env.beginWriteTxn();
     defer txn.abort();
 
     const dbi = try txn.openDBI(null, .{});
@@ -309,7 +309,7 @@ test "Boundary: empty value" {
     try env.open(test_dir, .{}, 0o644);
     defer env.close();
 
-    var txn = try env.beginTxn(null, .read_write);
+    var txn = try env.beginWriteTxn();
     defer txn.abort();
 
     const dbi = try txn.openDBI(null, .{});
@@ -334,7 +334,7 @@ test "Error handling: multiple abort calls" {
     try env.open(test_dir, .{}, 0o644);
     defer env.close();
 
-    var txn = try env.beginTxn(null, .read_write);
+    var txn = try env.beginWriteTxn();
 
     // 第一次 abort
     txn.abort();

@@ -106,15 +106,17 @@ fn benchSyncDurable() !void {
     });
 
     // 使用默认标志 (MDBX_SYNC_DURABLE)
-    try env.open(test_path, .defaults, 0o755);
+    try env.open(test_path, zmdbx.EnvFlagSet.init(.{}), 0o755);
 
     const num_ops = 10000;
     const start = std.time.milliTimestamp();
 
-    var txn = try env.beginTxn(null, .read_write);
+    var txn = try env.beginWriteTxn();
     defer txn.abort();
 
-    const dbi = try txn.openDBI(null, .create);
+    var db_flags = zmdbx.DBFlagSet.init(.{});
+        db_flags.insert(.create);
+        const dbi = try txn.openDBI(null, db_flags);
 
     // 使用栈上缓冲区,避免堆分配
     var key_buf: [32]u8 = undefined;
@@ -124,7 +126,7 @@ fn benchSyncDurable() !void {
     while (i < num_ops) : (i += 1) {
         const key = formatKey(&key_buf, i);
         const value = formatValue(&value_buf, i);
-        try txn.put(dbi, key, value, .upsert);
+        try txn.put(dbi, key, value, zmdbx.PutFlagSet.init(.{}));
     }
 
     try txn.commit();
@@ -166,8 +168,12 @@ fn benchSafeNoSync() !void {
     try env.setOption(.OptLooseLimit, 128);
 
     // 使用 WRITE_MAP + SAFE_NOSYNC
-    try env.open(test_path, .write_map, 0o755);
-    try env.setFlags(.safe_no_sync, true);
+    var env_flags = zmdbx.EnvFlagSet.init(.{});
+    env_flags.insert(.write_map);
+    try env.open(test_path, env_flags, 0o755);
+    var flags_to_set = zmdbx.EnvFlagSet.init(.{});
+        flags_to_set.insert(.safe_no_sync);
+        try env.setFlags(flags_to_set, true);
 
     // 同步阈值 (必须在 open 和 setFlags 之后)
     try env.setSyncBytes(64 * 1024 * 1024); // 64MB
@@ -176,10 +182,12 @@ fn benchSafeNoSync() !void {
     const num_ops = 100000;
     const start = std.time.milliTimestamp();
 
-    var txn = try env.beginTxn(null, .read_write);
+    var txn = try env.beginWriteTxn();
     defer txn.abort();
 
-    const dbi = try txn.openDBI(null, .create);
+    var db_flags = zmdbx.DBFlagSet.init(.{});
+        db_flags.insert(.create);
+        const dbi = try txn.openDBI(null, db_flags);
 
     // 使用栈上缓冲区,避免堆分配
     var key_buf: [32]u8 = undefined;
@@ -189,7 +197,7 @@ fn benchSafeNoSync() !void {
     while (i < num_ops) : (i += 1) {
         const key = formatKey(&key_buf, i);
         const value = formatValue(&value_buf, i);
-        try txn.put(dbi, key, value, .upsert);
+        try txn.put(dbi, key, value, zmdbx.PutFlagSet.init(.{}));
     }
 
     try txn.commit();
@@ -229,16 +237,22 @@ fn benchNoMetaSync() !void {
     try env.setOption(.OptDpReserveLimit, 4096);
 
     // 使用 WRITE_MAP + NOMETASYNC
-    try env.open(test_path, .write_map, 0o755);
-    try env.setFlags(.no_meta_sync, true);
+    var env_flags = zmdbx.EnvFlagSet.init(.{});
+    env_flags.insert(.write_map);
+    try env.open(test_path, env_flags, 0o755);
+    var flags_to_set = zmdbx.EnvFlagSet.init(.{});
+        flags_to_set.insert(.no_meta_sync);
+        try env.setFlags(flags_to_set, true);
 
     const num_ops = 100000;
     const start = std.time.milliTimestamp();
 
-    var txn = try env.beginTxn(null, .read_write);
+    var txn = try env.beginWriteTxn();
     defer txn.abort();
 
-    const dbi = try txn.openDBI(null, .create);
+    var db_flags = zmdbx.DBFlagSet.init(.{});
+        db_flags.insert(.create);
+        const dbi = try txn.openDBI(null, db_flags);
 
     // 使用栈上缓冲区,避免堆分配
     var key_buf: [32]u8 = undefined;
@@ -248,7 +262,7 @@ fn benchNoMetaSync() !void {
     while (i < num_ops) : (i += 1) {
         const key = formatKey(&key_buf, i);
         const value = formatValue(&value_buf, i);
-        try txn.put(dbi, key, value, .upsert);
+        try txn.put(dbi, key, value, zmdbx.PutFlagSet.init(.{}));
     }
 
     try txn.commit();
@@ -289,16 +303,22 @@ fn benchUtterlyNoSync() !void {
     try env.setOption(.OptLooseLimit, 255);
 
     // 使用 WRITE_MAP + UTTERLY_NOSYNC
-    try env.open(test_path, .write_map, 0o755);
-    try env.setFlags(.utterly_no_sync, true);
+    var env_flags = zmdbx.EnvFlagSet.init(.{});
+    env_flags.insert(.write_map);
+    try env.open(test_path, env_flags, 0o755);
+    var flags_to_set = zmdbx.EnvFlagSet.init(.{});
+        flags_to_set.insert(.utterly_no_sync);
+        try env.setFlags(flags_to_set, true);
 
     const num_ops = 100000;
     const start = std.time.milliTimestamp();
 
-    var txn = try env.beginTxn(null, .read_write);
+    var txn = try env.beginWriteTxn();
     defer txn.abort();
 
-    const dbi = try txn.openDBI(null, .create);
+    var db_flags = zmdbx.DBFlagSet.init(.{});
+        db_flags.insert(.create);
+        const dbi = try txn.openDBI(null, db_flags);
 
     // 使用栈上缓冲区,避免堆分配
     var key_buf: [32]u8 = undefined;
@@ -308,7 +328,7 @@ fn benchUtterlyNoSync() !void {
     while (i < num_ops) : (i += 1) {
         const key = formatKey(&key_buf, i);
         const value = formatValue(&value_buf, i);
-        try txn.put(dbi, key, value, .upsert);
+        try txn.put(dbi, key, value, zmdbx.PutFlagSet.init(.{}));
     }
 
     try txn.commit();

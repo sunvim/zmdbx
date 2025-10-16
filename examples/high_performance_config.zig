@@ -28,8 +28,13 @@ pub fn setupHighPerformanceLog() !zmdbx.Env {
     try env.setOption(.OptLooseLimit, 128); // 松散页缓存 2x (128 页)
 
     // 3. 打开环境 (WRITE_MAP + SAFE_NOSYNC)
-    try env.open("./log.mdbx", .write_map, 0o755);
-    try env.setFlags(.safe_no_sync, true);
+    var env_flags = zmdbx.EnvFlagSet.init(.{});
+    env_flags.insert(.write_map);
+    try env.open("./log.mdbx", env_flags, 0o755);
+
+    var flags_to_set = zmdbx.EnvFlagSet.init(.{});
+    flags_to_set.insert(.safe_no_sync);
+    try env.setFlags(flags_to_set, true);
 
     // 4. 同步策略 (容忍30秒数据丢失)
     try env.setSyncBytes(64 * 1024 * 1024); // 每 64MB 数据触发一次同步
@@ -60,7 +65,7 @@ pub fn setupFinancialDatabase() !zmdbx.Env {
     try env.setOption(.OptTxnDpInitial, 2048); // 2x 默认
 
     // 3. 完全同步模式 (SYNC_DURABLE)
-    try env.open("./financial.mdbx", .defaults, 0o755);
+    try env.open("./financial.mdbx", zmdbx.EnvFlagSet.init(.{}), 0o755);
 
     return env;
 }
@@ -91,8 +96,13 @@ pub fn setupHybridDatabase() !zmdbx.Env {
     try env.setSyncBytes(16 * 1024 * 1024);
     try env.setSyncPeriod(5 * 65536); // 5 秒
 
-    try env.open("./hybrid.mdbx", .write_map, 0o755);
-    try env.setFlags(.safe_no_sync, true);
+    var env_flags = zmdbx.EnvFlagSet.init(.{});
+    env_flags.insert(.write_map);
+    try env.open("./hybrid.mdbx", env_flags, 0o755);
+
+    var flags_to_set = zmdbx.EnvFlagSet.init(.{});
+    flags_to_set.insert(.safe_no_sync);
+    try env.setFlags(flags_to_set, true);
 
     return env;
 }
@@ -119,8 +129,13 @@ pub fn setupUltraHighPerformance() !zmdbx.Env {
     try env.setOption(.OptDpReserveLimit, 16384); // 16x 默认 (16K 页)
     try env.setOption(.OptLooseLimit, 255); // 最大值 (255 页)
 
-    try env.open("./ultra_perf.mdbx", .write_map, 0o755);
-    try env.setFlags(.utterly_no_sync, true);
+    var env_flags = zmdbx.EnvFlagSet.init(.{});
+    env_flags.insert(.write_map);
+    try env.open("./ultra_perf.mdbx", env_flags, 0o755);
+
+    var flags_to_set = zmdbx.EnvFlagSet.init(.{});
+    flags_to_set.insert(.utterly_no_sync);
+    try env.setFlags(flags_to_set, true);
 
     return env;
 }
@@ -146,10 +161,14 @@ pub fn main() !void {
     const start = std.time.milliTimestamp();
 
     {
-        var txn = try env.beginTxn(null, .read_write);
+        var txn = try env.beginWriteTxn();
         defer txn.abort();
 
-        const dbi = try txn.openDBI(null, .create);
+        var db_flags = zmdbx.DBFlagSet.init(.{});
+        db_flags.insert(.create);
+        const dbi = try txn.openDBI(null, db_flags);
+
+        const put_flags = zmdbx.PutFlagSet.init(.{});
 
         var i: usize = 0;
         while (i < num_records) : (i += 1) {
@@ -163,7 +182,7 @@ pub fn main() !void {
             );
             defer allocator.free(value);
 
-            try txn.put(dbi, key, value, .upsert);
+            try txn.put(dbi, key, value, put_flags);
         }
 
         try txn.commit();

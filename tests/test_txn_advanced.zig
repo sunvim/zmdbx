@@ -33,7 +33,7 @@ test "Txn info operation" {
 
     // 创建写事务并获取信息
     {
-        var txn = try env.beginTxn(null, .read_write);
+        var txn = try env.beginWriteTxn();
         defer txn.abort();
 
         const dbi = try txn.openDBI(null, .{});
@@ -51,7 +51,7 @@ test "Txn info operation" {
 
     // 创建只读事务并获取信息
     {
-        var txn = try env.beginTxn(null, .read_only);
+        var txn = try env.beginReadTxn();
         defer txn.abort();
 
         const info = try txn.info();
@@ -74,7 +74,7 @@ test "Txn reset operation (read-only)" {
 
     // 先插入一些数据
     {
-        var txn = try env.beginTxn(null, .read_write);
+        var txn = try env.beginWriteTxn();
         defer txn.abort();
 
         const dbi = try txn.openDBI(null, .{});
@@ -83,7 +83,7 @@ test "Txn reset operation (read-only)" {
     }
 
     // 创建只读事务
-    var txn = try env.beginTxn(null, .read_only);
+    var txn = try env.beginReadTxn();
     defer txn.abort();
 
     const dbi = try txn.openDBI(null, .{});
@@ -113,7 +113,7 @@ test "Txn renew operation (read-only)" {
 
     // 先插入一些数据
     {
-        var txn = try env.beginTxn(null, .read_write);
+        var txn = try env.beginWriteTxn();
         defer txn.abort();
 
         const dbi = try txn.openDBI(null, .{});
@@ -122,7 +122,7 @@ test "Txn renew operation (read-only)" {
     }
 
     // 创建只读事务
-    var txn = try env.beginTxn(null, .read_only);
+    var txn = try env.beginReadTxn();
     defer txn.abort();
 
     const dbi = try txn.openDBI(null, .{});
@@ -155,7 +155,7 @@ test "Txn reset-renew cycle" {
 
     // 插入初始数据
     {
-        var txn = try env.beginTxn(null, .read_write);
+        var txn = try env.beginWriteTxn();
         defer txn.abort();
 
         const dbi = try txn.openDBI(null, .{});
@@ -164,7 +164,7 @@ test "Txn reset-renew cycle" {
     }
 
     // 创建只读事务并多次重置/续订
-    var txn = try env.beginTxn(null, .read_only);
+    var txn = try env.beginReadTxn();
     defer txn.abort();
 
     const dbi = try txn.openDBI(null, .{});
@@ -199,7 +199,7 @@ test "Txn markBroken operation" {
     try env.open(test_dir, .{}, 0o644);
     defer env.close();
 
-    var txn = try env.beginTxn(null, .read_write);
+    var txn = try env.beginWriteTxn();
     // 注意：不使用 defer txn.abort()，因为我们要手动处理
 
     const dbi = try txn.openDBI(null, .{});
@@ -235,7 +235,7 @@ test "Txn complex operations sequence" {
 
     // 复杂的事务操作序列
     {
-        var txn = try env.beginTxn(null, .read_write);
+        var txn = try env.beginWriteTxn();
         defer txn.abort();
 
         const dbi = try txn.openDBI(null, .{});
@@ -264,7 +264,7 @@ test "Txn complex operations sequence" {
 
     // 验证最终结果
     {
-        var txn = try env.beginTxn(null, .read_only);
+        var txn = try env.beginReadTxn();
         defer txn.abort();
 
         const dbi = try txn.openDBI(null, .{});
@@ -290,7 +290,7 @@ test "Txn read-only write restriction" {
     try env.open(test_dir, .{}, 0o644);
     defer env.close();
 
-    var txn = try env.beginTxn(null, .read_only);
+    var txn = try env.beginReadTxn();
     defer txn.abort();
 
     const dbi = try txn.openDBI(null, .{});
@@ -310,7 +310,7 @@ test "Txn info changes across operations" {
     try env.open(test_dir, .{}, 0o644);
     defer env.close();
 
-    var txn = try env.beginTxn(null, .read_write);
+    var txn = try env.beginWriteTxn();
     defer txn.abort();
 
     const dbi = try txn.openDBI(null, .{});

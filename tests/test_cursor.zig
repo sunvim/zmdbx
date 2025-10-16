@@ -11,26 +11,28 @@ test "Cursor basic iteration" {
     var env = try zmdbx.Env.init();
     defer env.deinit();
 
-    try env.open(test_path, .defaults, 0o755);
+    try env.open(test_path, zmdbx.EnvFlagSet.init(.{}), 0o755);
 
     // 写入测试数据
     {
-        var txn = try env.beginTxn(null, .read_write);
+        var txn = try env.beginWriteTxn();
         defer txn.abort();
 
-        const dbi = try txn.openDBI(null, .create);
-        try txn.put(dbi, "a", "1", .upsert);
-        try txn.put(dbi, "b", "2", .upsert);
-        try txn.put(dbi, "c", "3", .upsert);
+        var db_flags = zmdbx.DBFlagSet.init(.{});
+        db_flags.insert(.create);
+        const dbi = try txn.openDBI(null, db_flags);
+        try txn.put(dbi, "a", "1", zmdbx.PutFlagSet.init(.{}));
+        try txn.put(dbi, "b", "2", zmdbx.PutFlagSet.init(.{}));
+        try txn.put(dbi, "c", "3", zmdbx.PutFlagSet.init(.{}));
         try txn.commit();
     }
 
     // 使用游标遍历
     {
-        var txn = try env.beginTxn(null, .read_only);
+        var txn = try env.beginReadTxn();
         defer txn.abort();
 
-        const dbi = try txn.openDBI(null, .defaults);
+        const dbi = try txn.openDBI(null, zmdbx.DBFlagSet.init(.{}));
         var cursor = try zmdbx.Cursor.open(txn.txn.?, dbi);
         defer cursor.close();
 
@@ -62,26 +64,28 @@ test "Cursor set_range" {
     var env = try zmdbx.Env.init();
     defer env.deinit();
 
-    try env.open(test_path, .defaults, 0o755);
+    try env.open(test_path, zmdbx.EnvFlagSet.init(.{}), 0o755);
 
     // 写入测试数据
     {
-        var txn = try env.beginTxn(null, .read_write);
+        var txn = try env.beginWriteTxn();
         defer txn.abort();
 
-        const dbi = try txn.openDBI(null, .create);
-        try txn.put(dbi, "key001", "a", .upsert);
-        try txn.put(dbi, "key005", "b", .upsert);
-        try txn.put(dbi, "key010", "c", .upsert);
+        var db_flags = zmdbx.DBFlagSet.init(.{});
+        db_flags.insert(.create);
+        const dbi = try txn.openDBI(null, db_flags);
+        try txn.put(dbi, "key001", "a", zmdbx.PutFlagSet.init(.{}));
+        try txn.put(dbi, "key005", "b", zmdbx.PutFlagSet.init(.{}));
+        try txn.put(dbi, "key010", "c", zmdbx.PutFlagSet.init(.{}));
         try txn.commit();
     }
 
     // 查找 >= key005 的记录
     {
-        var txn = try env.beginTxn(null, .read_only);
+        var txn = try env.beginReadTxn();
         defer txn.abort();
 
-        const dbi = try txn.openDBI(null, .defaults);
+        const dbi = try txn.openDBI(null, zmdbx.DBFlagSet.init(.{}));
         var cursor = try zmdbx.Cursor.open(txn.txn.?, dbi);
         defer cursor.close();
 
@@ -98,26 +102,28 @@ test "Cursor last and prev" {
     var env = try zmdbx.Env.init();
     defer env.deinit();
 
-    try env.open(test_path, .defaults, 0o755);
+    try env.open(test_path, zmdbx.EnvFlagSet.init(.{}), 0o755);
 
     // 写入测试数据
     {
-        var txn = try env.beginTxn(null, .read_write);
+        var txn = try env.beginWriteTxn();
         defer txn.abort();
 
-        const dbi = try txn.openDBI(null, .create);
-        try txn.put(dbi, "1", "a", .upsert);
-        try txn.put(dbi, "2", "b", .upsert);
-        try txn.put(dbi, "3", "c", .upsert);
+        var db_flags = zmdbx.DBFlagSet.init(.{});
+        db_flags.insert(.create);
+        const dbi = try txn.openDBI(null, db_flags);
+        try txn.put(dbi, "1", "a", zmdbx.PutFlagSet.init(.{}));
+        try txn.put(dbi, "2", "b", zmdbx.PutFlagSet.init(.{}));
+        try txn.put(dbi, "3", "c", zmdbx.PutFlagSet.init(.{}));
         try txn.commit();
     }
 
     // 从后向前遍历
     {
-        var txn = try env.beginTxn(null, .read_only);
+        var txn = try env.beginReadTxn();
         defer txn.abort();
 
-        const dbi = try txn.openDBI(null, .defaults);
+        const dbi = try txn.openDBI(null, zmdbx.DBFlagSet.init(.{}));
         var cursor = try zmdbx.Cursor.open(txn.txn.?, dbi);
         defer cursor.close();
 
@@ -143,39 +149,41 @@ test "Cursor put operation" {
     var env = try zmdbx.Env.init();
     defer env.deinit();
 
-    try env.open(test_path, .defaults, 0o755);
+    try env.open(test_path, zmdbx.EnvFlagSet.init(.{}), 0o755);
 
     // 使用游标插入数据
     {
-        var txn = try env.beginTxn(null, .read_write);
+        var txn = try env.beginWriteTxn();
         defer txn.abort();
 
-        const dbi = try txn.openDBI(null, .create);
+        var db_flags = zmdbx.DBFlagSet.init(.{});
+        db_flags.insert(.create);
+        const dbi = try txn.openDBI(null, db_flags);
         var cursor = try zmdbx.Cursor.open(txn.txn.?, dbi);
         defer cursor.close();
 
         // 使用游标插入多条数据
-        try cursor.put("key1", "value1", .upsert);
-        try cursor.put("key2", "value2", .upsert);
-        try cursor.put("key3", "value3", .upsert);
+        try cursor.put("key1", "value1", zmdbx.PutFlagSet.init(.{}));
+        try cursor.put("key2", "value2", zmdbx.PutFlagSet.init(.{}));
+        try cursor.put("key3", "value3", zmdbx.PutFlagSet.init(.{}));
 
         try txn.commit();
     }
 
     // 验证数据已插入
     {
-        var txn = try env.beginTxn(null, .read_only);
+        var txn = try env.beginReadTxn();
         defer txn.abort();
 
-        const dbi = try txn.openDBI(null, .defaults);
+        const dbi = try txn.openDBI(null, zmdbx.DBFlagSet.init(.{}));
 
-        const val1 = try txn.get(dbi, "key1");
+        const val1 = try txn.getBytes(dbi, "key1");
         try testing.expectEqualStrings("value1", val1);
 
-        const val2 = try txn.get(dbi, "key2");
+        const val2 = try txn.getBytes(dbi, "key2");
         try testing.expectEqualStrings("value2", val2);
 
-        const val3 = try txn.get(dbi, "key3");
+        const val3 = try txn.getBytes(dbi, "key3");
         try testing.expectEqualStrings("value3", val3);
     }
 }
@@ -188,26 +196,28 @@ test "Cursor delete operation" {
     var env = try zmdbx.Env.init();
     defer env.deinit();
 
-    try env.open(test_path, .defaults, 0o755);
+    try env.open(test_path, zmdbx.EnvFlagSet.init(.{}), 0o755);
 
     // 先插入数据
     {
-        var txn = try env.beginTxn(null, .read_write);
+        var txn = try env.beginWriteTxn();
         defer txn.abort();
 
-        const dbi = try txn.openDBI(null, .create);
-        try txn.put(dbi, "key1", "value1", .upsert);
-        try txn.put(dbi, "key2", "value2", .upsert);
-        try txn.put(dbi, "key3", "value3", .upsert);
+        var db_flags = zmdbx.DBFlagSet.init(.{});
+        db_flags.insert(.create);
+        const dbi = try txn.openDBI(null, db_flags);
+        try txn.put(dbi, "key1", "value1", zmdbx.PutFlagSet.init(.{}));
+        try txn.put(dbi, "key2", "value2", zmdbx.PutFlagSet.init(.{}));
+        try txn.put(dbi, "key3", "value3", zmdbx.PutFlagSet.init(.{}));
         try txn.commit();
     }
 
     // 使用游标删除数据
     {
-        var txn = try env.beginTxn(null, .read_write);
+        var txn = try env.beginWriteTxn();
         defer txn.abort();
 
-        const dbi = try txn.openDBI(null, .defaults);
+        const dbi = try txn.openDBI(null, zmdbx.DBFlagSet.init(.{}));
         var cursor = try zmdbx.Cursor.open(txn.txn.?, dbi);
         defer cursor.close();
 
@@ -220,14 +230,14 @@ test "Cursor delete operation" {
 
     // 验证 key2 已删除，其他键仍存在
     {
-        var txn = try env.beginTxn(null, .read_only);
+        var txn = try env.beginReadTxn();
         defer txn.abort();
 
-        const dbi = try txn.openDBI(null, .defaults);
+        const dbi = try txn.openDBI(null, zmdbx.DBFlagSet.init(.{}));
 
-        _ = try txn.get(dbi, "key1");  // 应该存在
-        try testing.expectError(error.NotFound, txn.get(dbi, "key2"));  // 已删除
-        _ = try txn.get(dbi, "key3");  // 应该存在
+        _ = try txn.getBytes(dbi, "key1");  // 应该存在
+        try testing.expectError(error.NotFound, txn.getBytes(dbi, "key2"));  // 已删除
+        _ = try txn.getBytes(dbi, "key3");  // 应该存在
     }
 }
 
@@ -239,23 +249,25 @@ test "Cursor count operation" {
     var env = try zmdbx.Env.init();
     defer env.deinit();
 
-    try env.open(test_path, .defaults, 0o755);
+    try env.open(test_path, zmdbx.EnvFlagSet.init(.{}), 0o755);
 
     // 在常规数据库中，每个键只有一个值，count 应该返回 1
     {
-        var txn = try env.beginTxn(null, .read_write);
+        var txn = try env.beginWriteTxn();
         defer txn.abort();
 
-        const dbi = try txn.openDBI(null, .create);
-        try txn.put(dbi, "key1", "value1", .upsert);
+        var db_flags = zmdbx.DBFlagSet.init(.{});
+        db_flags.insert(.create);
+        const dbi = try txn.openDBI(null, db_flags);
+        try txn.put(dbi, "key1", "value1", zmdbx.PutFlagSet.init(.{}));
         try txn.commit();
     }
 
     {
-        var txn = try env.beginTxn(null, .read_only);
+        var txn = try env.beginReadTxn();
         defer txn.abort();
 
-        const dbi = try txn.openDBI(null, .defaults);
+        const dbi = try txn.openDBI(null, zmdbx.DBFlagSet.init(.{}));
         var cursor = try zmdbx.Cursor.open(txn.txn.?, dbi);
         defer cursor.close();
 
@@ -273,23 +285,25 @@ test "Cursor eof check" {
     var env = try zmdbx.Env.init();
     defer env.deinit();
 
-    try env.open(test_path, .defaults, 0o755);
+    try env.open(test_path, zmdbx.EnvFlagSet.init(.{}), 0o755);
 
     // 插入数据
     {
-        var txn = try env.beginTxn(null, .read_write);
+        var txn = try env.beginWriteTxn();
         defer txn.abort();
 
-        const dbi = try txn.openDBI(null, .create);
-        try txn.put(dbi, "key1", "value1", .upsert);
+        var db_flags = zmdbx.DBFlagSet.init(.{});
+        db_flags.insert(.create);
+        const dbi = try txn.openDBI(null, db_flags);
+        try txn.put(dbi, "key1", "value1", zmdbx.PutFlagSet.init(.{}));
         try txn.commit();
     }
 
     {
-        var txn = try env.beginTxn(null, .read_only);
+        var txn = try env.beginReadTxn();
         defer txn.abort();
 
-        const dbi = try txn.openDBI(null, .defaults);
+        const dbi = try txn.openDBI(null, zmdbx.DBFlagSet.init(.{}));
         var cursor = try zmdbx.Cursor.open(txn.txn.?, dbi);
         defer cursor.close();
 
@@ -311,24 +325,26 @@ test "Cursor onFirst check" {
     var env = try zmdbx.Env.init();
     defer env.deinit();
 
-    try env.open(test_path, .defaults, 0o755);
+    try env.open(test_path, zmdbx.EnvFlagSet.init(.{}), 0o755);
 
     // 插入多条数据
     {
-        var txn = try env.beginTxn(null, .read_write);
+        var txn = try env.beginWriteTxn();
         defer txn.abort();
 
-        const dbi = try txn.openDBI(null, .create);
-        try txn.put(dbi, "key1", "value1", .upsert);
-        try txn.put(dbi, "key2", "value2", .upsert);
+        var db_flags = zmdbx.DBFlagSet.init(.{});
+        db_flags.insert(.create);
+        const dbi = try txn.openDBI(null, db_flags);
+        try txn.put(dbi, "key1", "value1", zmdbx.PutFlagSet.init(.{}));
+        try txn.put(dbi, "key2", "value2", zmdbx.PutFlagSet.init(.{}));
         try txn.commit();
     }
 
     {
-        var txn = try env.beginTxn(null, .read_only);
+        var txn = try env.beginReadTxn();
         defer txn.abort();
 
-        const dbi = try txn.openDBI(null, .defaults);
+        const dbi = try txn.openDBI(null, zmdbx.DBFlagSet.init(.{}));
         var cursor = try zmdbx.Cursor.open(txn.txn.?, dbi);
         defer cursor.close();
 
@@ -350,24 +366,26 @@ test "Cursor onLast check" {
     var env = try zmdbx.Env.init();
     defer env.deinit();
 
-    try env.open(test_path, .defaults, 0o755);
+    try env.open(test_path, zmdbx.EnvFlagSet.init(.{}), 0o755);
 
     // 插入多条数据
     {
-        var txn = try env.beginTxn(null, .read_write);
+        var txn = try env.beginWriteTxn();
         defer txn.abort();
 
-        const dbi = try txn.openDBI(null, .create);
-        try txn.put(dbi, "key1", "value1", .upsert);
-        try txn.put(dbi, "key2", "value2", .upsert);
+        var db_flags = zmdbx.DBFlagSet.init(.{});
+        db_flags.insert(.create);
+        const dbi = try txn.openDBI(null, db_flags);
+        try txn.put(dbi, "key1", "value1", zmdbx.PutFlagSet.init(.{}));
+        try txn.put(dbi, "key2", "value2", zmdbx.PutFlagSet.init(.{}));
         try txn.commit();
     }
 
     {
-        var txn = try env.beginTxn(null, .read_only);
+        var txn = try env.beginReadTxn();
         defer txn.abort();
 
-        const dbi = try txn.openDBI(null, .defaults);
+        const dbi = try txn.openDBI(null, zmdbx.DBFlagSet.init(.{}));
         var cursor = try zmdbx.Cursor.open(txn.txn.?, dbi);
         defer cursor.close();
 
@@ -389,23 +407,25 @@ test "Cursor renew operation" {
     var env = try zmdbx.Env.init();
     defer env.deinit();
 
-    try env.open(test_path, .defaults, 0o755);
+    try env.open(test_path, zmdbx.EnvFlagSet.init(.{}), 0o755);
 
     // 插入数据
     {
-        var txn = try env.beginTxn(null, .read_write);
+        var txn = try env.beginWriteTxn();
         defer txn.abort();
 
-        const dbi = try txn.openDBI(null, .create);
-        try txn.put(dbi, "key1", "value1", .upsert);
+        var db_flags = zmdbx.DBFlagSet.init(.{});
+        db_flags.insert(.create);
+        const dbi = try txn.openDBI(null, db_flags);
+        try txn.put(dbi, "key1", "value1", zmdbx.PutFlagSet.init(.{}));
         try txn.commit();
     }
 
     // 创建只读事务和游标
-    var txn = try env.beginTxn(null, .read_only);
+    var txn = try env.beginReadTxn();
     defer txn.abort();
 
-    const dbi = try txn.openDBI(null, .defaults);
+    const dbi = try txn.openDBI(null, zmdbx.DBFlagSet.init(.{}));
     var cursor = try zmdbx.Cursor.open(txn.txn.?, dbi);
     defer cursor.close();
 
@@ -413,7 +433,7 @@ test "Cursor renew operation" {
     _ = try cursor.get(null, null, .first);
 
     // 续订游标到新事务
-    var new_txn = try env.beginTxn(null, .read_only);
+    var new_txn = try env.beginReadTxn();
     defer new_txn.abort();
 
     try cursor.renew(new_txn.txn.?);
@@ -431,12 +451,14 @@ test "Cursor txn and dbi accessors" {
     var env = try zmdbx.Env.init();
     defer env.deinit();
 
-    try env.open(test_path, .defaults, 0o755);
+    try env.open(test_path, zmdbx.EnvFlagSet.init(.{}), 0o755);
 
-    var txn = try env.beginTxn(null, .read_write);
+    var txn = try env.beginWriteTxn();
     defer txn.abort();
 
-    const dbi = try txn.openDBI(null, .create);
+    var db_flags = zmdbx.DBFlagSet.init(.{});
+        db_flags.insert(.create);
+        const dbi = try txn.openDBI(null, db_flags);
     var cursor = try zmdbx.Cursor.open(txn.txn.?, dbi);
     defer cursor.close();
 

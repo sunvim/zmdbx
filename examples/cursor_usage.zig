@@ -10,21 +10,24 @@ pub fn main() !void {
     // 创建并打开环境
     var env = try zmdbx.Env.init();
     defer env.deinit();
-    try env.open("./testdb", .defaults, 0o644);
+    try env.open("./testdb", zmdbx.EnvFlagSet.init(.{}), 0o644);
 
     // 写入测试数据
     std.debug.print("1. 写入测试数据...\n", .{});
     {
-        var txn = try env.beginTxn(null, .read_write);
+        var txn = try env.beginWriteTxn();
         defer txn.abort();
 
-        const dbi = try txn.openDBI(null, .create);
+        var db_flags = zmdbx.DBFlagSet.init(.{});
+        db_flags.insert(.create);
+        const dbi = try txn.openDBI(null, db_flags);
 
-        try txn.put(dbi, "user:001", "Alice", .upsert);
-        try txn.put(dbi, "user:002", "Bob", .upsert);
-        try txn.put(dbi, "user:003", "Charlie", .upsert);
-        try txn.put(dbi, "user:004", "David", .upsert);
-        try txn.put(dbi, "user:005", "Eve", .upsert);
+        const put_flags = zmdbx.PutFlagSet.init(.{});
+        try txn.put(dbi, "user:001", "Alice", put_flags);
+        try txn.put(dbi, "user:002", "Bob", put_flags);
+        try txn.put(dbi, "user:003", "Charlie", put_flags);
+        try txn.put(dbi, "user:004", "David", put_flags);
+        try txn.put(dbi, "user:005", "Eve", put_flags);
 
         try txn.commit();
         std.debug.print("   写入 5 条用户数据\n\n", .{});
@@ -33,10 +36,10 @@ pub fn main() !void {
     // 使用游标遍历
     std.debug.print("2. 使用游标遍历所有数据...\n", .{});
     {
-        var txn = try env.beginTxn(null, .read_only);
+        var txn = try env.beginReadTxn();
         defer txn.abort();
 
-        const dbi = try txn.openDBI(null, .defaults);
+        const dbi = try txn.openDBI(null, zmdbx.DBFlagSet.init(.{}));
         var cursor = try zmdbx.Cursor.open(txn.txn.?, dbi);
         defer cursor.close();
 
@@ -60,10 +63,10 @@ pub fn main() !void {
     // 使用游标查找特定范围
     std.debug.print("3. 查找 key >= 'user:003' 的记录...\n", .{});
     {
-        var txn = try env.beginTxn(null, .read_only);
+        var txn = try env.beginReadTxn();
         defer txn.abort();
 
-        const dbi = try txn.openDBI(null, .defaults);
+        const dbi = try txn.openDBI(null, zmdbx.DBFlagSet.init(.{}));
         var cursor = try zmdbx.Cursor.open(txn.txn.?, dbi);
         defer cursor.close();
 

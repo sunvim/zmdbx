@@ -92,15 +92,17 @@ fn benchSequentialWrites(allocator: std.mem.Allocator) !void {
         .pagesize = -1,
     });
 
-    try env.open(test_path, .defaults, 0o755);
+    try env.open(test_path, zmdbx.EnvFlagSet.init(.{}), 0o755);
 
     const num_ops = 100000;
     const start = std.time.milliTimestamp();
 
-    var txn = try env.beginTxn(null, .read_write);
+    var txn = try env.beginWriteTxn();
     defer txn.abort();
 
-    const dbi = try txn.openDBI(null, .create);
+    var db_flags = zmdbx.DBFlagSet.init(.{});
+        db_flags.insert(.create);
+        const dbi = try txn.openDBI(null, db_flags);
 
     var i: usize = 0;
     while (i < num_ops) : (i += 1) {
@@ -110,7 +112,7 @@ fn benchSequentialWrites(allocator: std.mem.Allocator) !void {
         const value = try std.fmt.allocPrint(allocator, "value_{d}_data", .{i});
         defer allocator.free(value);
 
-        try txn.put(dbi, key, value, .upsert);
+        try txn.put(dbi, key, value, zmdbx.PutFlagSet.init(.{}));
     }
 
     try txn.commit();
@@ -142,7 +144,7 @@ fn benchRandomWrites(allocator: std.mem.Allocator) !void {
         .pagesize = -1,
     });
 
-    try env.open(test_path, .defaults, 0o755);
+    try env.open(test_path, zmdbx.EnvFlagSet.init(.{}), 0o755);
 
     const num_ops = 100000;
     const start = std.time.milliTimestamp();
@@ -150,10 +152,12 @@ fn benchRandomWrites(allocator: std.mem.Allocator) !void {
     var prng = std.Random.DefaultPrng.init(@intCast(std.time.timestamp()));
     const random = prng.random();
 
-    var txn = try env.beginTxn(null, .read_write);
+    var txn = try env.beginWriteTxn();
     defer txn.abort();
 
-    const dbi = try txn.openDBI(null, .create);
+    var db_flags = zmdbx.DBFlagSet.init(.{});
+        db_flags.insert(.create);
+        const dbi = try txn.openDBI(null, db_flags);
 
     var i: usize = 0;
     while (i < num_ops) : (i += 1) {
@@ -164,7 +168,7 @@ fn benchRandomWrites(allocator: std.mem.Allocator) !void {
         const value = try std.fmt.allocPrint(allocator, "value_{d}_data", .{rand_id});
         defer allocator.free(value);
 
-        try txn.put(dbi, key, value, .upsert);
+        try txn.put(dbi, key, value, zmdbx.PutFlagSet.init(.{}));
     }
 
     try txn.commit();
@@ -196,15 +200,17 @@ fn benchSequentialReads(allocator: std.mem.Allocator) !void {
         .pagesize = -1,
     });
 
-    try env.open(test_path, .defaults, 0o755);
+    try env.open(test_path, zmdbx.EnvFlagSet.init(.{}), 0o755);
 
     // 先写入数据
     const num_ops = 100000;
     {
-        var txn = try env.beginTxn(null, .read_write);
+        var txn = try env.beginWriteTxn();
         defer txn.abort();
 
-        const dbi = try txn.openDBI(null, .create);
+        var db_flags = zmdbx.DBFlagSet.init(.{});
+        db_flags.insert(.create);
+        const dbi = try txn.openDBI(null, db_flags);
 
         var i: usize = 0;
         while (i < num_ops) : (i += 1) {
@@ -214,7 +220,7 @@ fn benchSequentialReads(allocator: std.mem.Allocator) !void {
             const value = try std.fmt.allocPrint(allocator, "value_{d}", .{i});
             defer allocator.free(value);
 
-            try txn.put(dbi, key, value, .upsert);
+            try txn.put(dbi, key, value, zmdbx.PutFlagSet.init(.{}));
         }
 
         try txn.commit();
@@ -224,17 +230,17 @@ fn benchSequentialReads(allocator: std.mem.Allocator) !void {
     const start = std.time.milliTimestamp();
 
     {
-        var txn = try env.beginTxn(null, .read_only);
+        var txn = try env.beginReadTxn();
         defer txn.abort();
 
-        const dbi = try txn.openDBI(null, .defaults);
+        const dbi = try txn.openDBI(null, zmdbx.DBFlagSet.init(.{}));
 
         var i: usize = 0;
         while (i < num_ops) : (i += 1) {
             const key = try std.fmt.allocPrint(allocator, "key:{d:0>10}", .{i});
             defer allocator.free(key);
 
-            _ = try txn.get(dbi, key);
+            _ = try txn.getBytes(dbi, key);
         }
     }
 
@@ -265,15 +271,17 @@ fn benchRandomReads(allocator: std.mem.Allocator) !void {
         .pagesize = -1,
     });
 
-    try env.open(test_path, .defaults, 0o755);
+    try env.open(test_path, zmdbx.EnvFlagSet.init(.{}), 0o755);
 
     // 先写入数据
     const num_records = 100000;
     {
-        var txn = try env.beginTxn(null, .read_write);
+        var txn = try env.beginWriteTxn();
         defer txn.abort();
 
-        const dbi = try txn.openDBI(null, .create);
+        var db_flags = zmdbx.DBFlagSet.init(.{});
+        db_flags.insert(.create);
+        const dbi = try txn.openDBI(null, db_flags);
 
         var i: usize = 0;
         while (i < num_records) : (i += 1) {
@@ -283,7 +291,7 @@ fn benchRandomReads(allocator: std.mem.Allocator) !void {
             const value = try std.fmt.allocPrint(allocator, "value_{d}", .{i});
             defer allocator.free(value);
 
-            try txn.put(dbi, key, value, .upsert);
+            try txn.put(dbi, key, value, zmdbx.PutFlagSet.init(.{}));
         }
 
         try txn.commit();
@@ -297,10 +305,10 @@ fn benchRandomReads(allocator: std.mem.Allocator) !void {
     const start = std.time.milliTimestamp();
 
     {
-        var txn = try env.beginTxn(null, .read_only);
+        var txn = try env.beginReadTxn();
         defer txn.abort();
 
-        const dbi = try txn.openDBI(null, .defaults);
+        const dbi = try txn.openDBI(null, zmdbx.DBFlagSet.init(.{}));
 
         var i: usize = 0;
         while (i < num_ops) : (i += 1) {
@@ -308,7 +316,7 @@ fn benchRandomReads(allocator: std.mem.Allocator) !void {
             const key = try std.fmt.allocPrint(allocator, "key:{d:0>10}", .{rand_id});
             defer allocator.free(key);
 
-            _ = try txn.get(dbi, key);
+            _ = try txn.getBytes(dbi, key);
         }
     }
 
@@ -339,7 +347,7 @@ fn benchMixedOperations(allocator: std.mem.Allocator) !void {
         .pagesize = -1,
     });
 
-    try env.open(test_path, .defaults, 0o755);
+    try env.open(test_path, zmdbx.EnvFlagSet.init(.{}), 0o755);
 
     const num_ops = 50000;
     var prng = std.Random.DefaultPrng.init(@intCast(std.time.timestamp()));
@@ -347,10 +355,12 @@ fn benchMixedOperations(allocator: std.mem.Allocator) !void {
 
     const start = std.time.milliTimestamp();
 
-    var txn = try env.beginTxn(null, .read_write);
+    var txn = try env.beginWriteTxn();
     defer txn.abort();
 
-    const dbi = try txn.openDBI(null, .create);
+    var db_flags = zmdbx.DBFlagSet.init(.{});
+        db_flags.insert(.create);
+        const dbi = try txn.openDBI(null, db_flags);
 
     var i: usize = 0;
     while (i < num_ops) : (i += 1) {
@@ -364,7 +374,7 @@ fn benchMixedOperations(allocator: std.mem.Allocator) !void {
             const value = try std.fmt.allocPrint(allocator, "value_{d}", .{i});
             defer allocator.free(value);
 
-            try txn.put(dbi, key, value, .upsert);
+            try txn.put(dbi, key, value, zmdbx.PutFlagSet.init(.{}));
         } else if (operation == 1 and i > 0) {
             // 读取
             const key = try std.fmt.allocPrint(allocator, "key:{d}", .{random.intRangeAtMost(usize, 0, i - 1)});
@@ -409,15 +419,17 @@ fn benchBulkDeletes(allocator: std.mem.Allocator) !void {
         .pagesize = -1,
     });
 
-    try env.open(test_path, .defaults, 0o755);
+    try env.open(test_path, zmdbx.EnvFlagSet.init(.{}), 0o755);
 
     // 先写入数据
     const num_records = 50000;
     {
-        var txn = try env.beginTxn(null, .read_write);
+        var txn = try env.beginWriteTxn();
         defer txn.abort();
 
-        const dbi = try txn.openDBI(null, .create);
+        var db_flags = zmdbx.DBFlagSet.init(.{});
+        db_flags.insert(.create);
+        const dbi = try txn.openDBI(null, db_flags);
 
         var i: usize = 0;
         while (i < num_records) : (i += 1) {
@@ -427,7 +439,7 @@ fn benchBulkDeletes(allocator: std.mem.Allocator) !void {
             const value = try std.fmt.allocPrint(allocator, "value_{d}", .{i});
             defer allocator.free(value);
 
-            try txn.put(dbi, key, value, .upsert);
+            try txn.put(dbi, key, value, zmdbx.PutFlagSet.init(.{}));
         }
 
         try txn.commit();
@@ -437,10 +449,10 @@ fn benchBulkDeletes(allocator: std.mem.Allocator) !void {
     const start = std.time.milliTimestamp();
 
     {
-        var txn = try env.beginTxn(null, .read_write);
+        var txn = try env.beginWriteTxn();
         defer txn.abort();
 
-        const dbi = try txn.openDBI(null, .defaults);
+        const dbi = try txn.openDBI(null, zmdbx.DBFlagSet.init(.{}));
 
         var i: usize = 0;
         while (i < num_records) : (i += 1) {

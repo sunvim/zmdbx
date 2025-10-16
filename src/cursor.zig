@@ -2,51 +2,15 @@ const std = @import("std");
 const c = @import("c.zig").c;
 
 const errors = @import("errors.zig");
-const Env = @import("env.zig");
+const types = @import("types.zig");
+const flags = @import("flags.zig");
 
-/// 游标操作类型
-pub const CursorOp = enum(c.MDBX_cursor_op) {
-    /// 定位到第一个键
-    first = c.MDBX_FIRST,
-    /// 定位到第一个大于等于指定键的数据
-    first_dup = c.MDBX_FIRST_DUP,
-    /// 定位到指定键的第一个数据项（用于 DUPSORT）
-    get_both = c.MDBX_GET_BOTH,
-    /// 定位到大于等于指定键和数据的位置（用于 DUPSORT）
-    get_both_range = c.MDBX_GET_BOTH_RANGE,
-    /// 返回当前位置的键/数据对
-    get_current = c.MDBX_GET_CURRENT,
-    /// 返回包含指定键的多个数据（用于 MDBX_DUPFIXED）
-    get_multiple = c.MDBX_GET_MULTIPLE,
-    /// 定位到最后一个键
-    last = c.MDBX_LAST,
-    /// 定位到最后一个数据项（用于 DUPSORT）
-    last_dup = c.MDBX_LAST_DUP,
-    /// 定位到下一个键
-    next = c.MDBX_NEXT,
-    /// 定位到下一个数据项（用于 DUPSORT）
-    next_dup = c.MDBX_NEXT_DUP,
-    /// 移动到下一个具有多个数据值的键（用于 MDBX_DUPFIXED）
-    next_multiple = c.MDBX_NEXT_MULTIPLE,
-    /// 移动到下一个键（即使当前键有多个数据项）
-    next_nodup = c.MDBX_NEXT_NODUP,
-    /// 定位到前一个键
-    prev = c.MDBX_PREV,
-    /// 定位到前一个数据项（用于 DUPSORT）
-    prev_dup = c.MDBX_PREV_DUP,
-    /// 移动到前一个键（即使当前键有多个数据项）
-    prev_nodup = c.MDBX_PREV_NODUP,
-    /// 定位到指定键
-    set = c.MDBX_SET,
-    /// 定位到指定键（如果不存在则定位到下一个键）
-    set_key = c.MDBX_SET_KEY,
-    /// 定位到大于等于指定键的键
-    set_range = c.MDBX_SET_RANGE,
-    /// 定位到小于等于指定键的键
-    set_lowerbound = c.MDBX_SET_LOWERBOUND,
-    /// 定位到上一个小于指定键的键
-    set_upperbound = c.MDBX_SET_UPPERBOUND,
-};
+// 重新导出类型
+pub const DBI = types.DBI;
+pub const Val = types.Val;
+pub const CursorOp = flags.CursorOp;
+pub const PutFlagSet = flags.PutFlagSet;
+pub const putFlagsToInt = flags.putFlagsToInt;
 
 /// 游标句柄
 pub const Cursor = struct {
@@ -55,7 +19,7 @@ pub const Cursor = struct {
     const Self = @This();
 
     /// 打开游标
-    pub fn open(transaction: *c.MDBX_txn, database: Env.DBI) errors.MDBXError!Self {
+    pub fn open(transaction: *c.MDBX_txn, database: DBI) errors.MDBXError!Self {
         var cursor: ?*c.MDBX_cursor = null;
         const rc = c.mdbx_cursor_open(transaction, database, &cursor);
         try errors.checkError(rc);
@@ -82,46 +46,68 @@ pub const Cursor = struct {
     }
 
     /// 获取游标关联的 DBI
-    pub fn dbi(self: *Self) Env.DBI {
+    pub fn dbi(self: *Self) DBI {
         return c.mdbx_cursor_dbi(self.cursor);
     }
 
-    /// 使用游标获取数据
+    /// 使用游标获取数据（使用 Val 类型）
+    ///
+    /// 这是新的 API，使用 Val 类型提供更好的类型安全性。
+    ///
+    /// 参数：
+    ///   key_val - 键的 Val，用于输入和输出
+    ///   data_val - 数据的 Val，用于输入和输出
+    ///   op - 游标操作类型
+    ///
+    /// 警告：key_val 和 data_val 在调用后会被更新为指向 MDBX 内部内存。
+    /// 这些内存的生命周期与事务相关联。
+    pub fn getRaw(
+        self: *Self,
+        key_val: *Val,
+        data_val: *Val,
+        op: CursorOp,
+    ) errors.MDBXError!void {
+        const rc = c.mdbx_cursor_get(self.cursor, key_val.asPtr(), data_val.asPtr(), @intFromEnum(op));
+        try errors.checkError(rc);
+    }
+
+    /// 使用游标获取数据（便利方法）
+    ///
+    /// 返回键值对的便利结构体。
+    ///
+    /// 警告：返回的键值对引用 MDBX 内部内存，生命周期与事务相关联。
     pub fn get(
         self: *Self,
         key: ?[]const u8,
         data: ?[]const u8,
         op: CursorOp,
-    ) errors.MDBXError!struct { key: []const u8, data: []const u8 } {
-        var key_val: c.MDBX_val = undefined;
-        var data_val: c.MDBX_val = undefined;
+    ) errors.MDBXError!struct { key: Val, data: Val } {
+        var key_val = if (key) |k| Val.fromBytes(k) else Val.empty();
+        var data_val = if (data) |d| Val.fromBytes(d) else Val.empty();
 
-        if (key) |k| {
-            key_val = c.MDBX_val{
-                .iov_base = @ptrCast(@constCast(k.ptr)),
-                .iov_len = k.len,
-            };
-        }
-
-        if (data) |d| {
-            data_val = c.MDBX_val{
-                .iov_base = @ptrCast(@constCast(d.ptr)),
-                .iov_len = d.len,
-            };
-        }
-
-        const key_ptr = if (key != null) &key_val else null;
-        const data_ptr = if (data != null) &data_val else null;
-
-        const rc = c.mdbx_cursor_get(self.cursor, key_ptr, data_ptr, @intFromEnum(op));
-        try errors.checkError(rc);
-
-        const result_key: [*]const u8 = @ptrCast(key_val.iov_base);
-        const result_data: [*]const u8 = @ptrCast(data_val.iov_base);
+        try self.getRaw(&key_val, &data_val, op);
 
         return .{
-            .key = result_key[0..key_val.iov_len],
-            .data = result_data[0..data_val.iov_len],
+            .key = key_val,
+            .data = data_val,
+        };
+    }
+
+    /// 使用游标获取数据（返回字节切片）
+    ///
+    /// 这是最便利的方法，直接返回字节切片。
+    ///
+    /// 警告：返回的切片引用 MDBX 内部内存，生命周期与事务相关联。
+    pub fn getBytes(
+        self: *Self,
+        key: ?[]const u8,
+        data: ?[]const u8,
+        op: CursorOp,
+    ) errors.MDBXError!struct { key: []const u8, data: []const u8 } {
+        const result = try self.get(key, data, op);
+        return .{
+            .key = result.key.toBytes(),
+            .data = result.data.toBytes(),
         };
     }
 
@@ -130,24 +116,20 @@ pub const Cursor = struct {
         self: *Self,
         key: []const u8,
         data: []const u8,
-        flags: c.MDBX_put_flags_t,
+        flags_set: PutFlagSet,
     ) errors.MDBXError!void {
-        var key_val = c.MDBX_val{
-            .iov_base = @ptrCast(@constCast(key.ptr)),
-            .iov_len = key.len,
-        };
-        var data_val = c.MDBX_val{
-            .iov_base = @ptrCast(@constCast(data.ptr)),
-            .iov_len = data.len,
-        };
+        var key_val = Val.fromBytes(key);
+        var data_val = Val.fromBytes(data);
 
-        const rc = c.mdbx_cursor_put(self.cursor, &key_val, &data_val, flags);
+        const c_flags = putFlagsToInt(flags_set);
+        const rc = c.mdbx_cursor_put(self.cursor, key_val.asPtr(), data_val.asPtr(), c_flags);
         try errors.checkError(rc);
     }
 
     /// 使用游标删除当前键/数据对
-    pub fn del(self: *Self, flags: c.MDBX_put_flags_t) errors.MDBXError!void {
-        const rc = c.mdbx_cursor_del(self.cursor, flags);
+    pub fn del(self: *Self, flags_set: PutFlagSet) errors.MDBXError!void {
+        const c_flags = putFlagsToInt(flags_set);
+        const rc = c.mdbx_cursor_del(self.cursor, c_flags);
         try errors.checkError(rc);
     }
 

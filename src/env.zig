@@ -3,78 +3,28 @@ const c = @import("c.zig").c;
 
 const errors = @import("errors.zig");
 const Option = @import("opt.zig").Option;
+const types = @import("types.zig");
+const flags = @import("flags.zig");
 const Txn = @import("txn.zig").Txn;
-const TxFlags = @import("txn.zig").TxFlags;
 
-/// 数据库实例句柄
-pub const DBI = c.MDBX_dbi;
+// 重新导出类型和标志，保持向后兼容
+pub const DBI = types.DBI;
+pub const Geometry = types.Geometry;
 
-/// 几何配置参数
-pub const Geometry = struct {
-    lower: isize = -1,
-    now: isize = -1,
-    upper: isize = -1,
-    growth_step: isize = -1,
-    shrink_threshold: isize = -1,
-    pagesize: isize = -1,
-};
+pub const EnvFlag = flags.EnvFlag;
+pub const EnvFlagSet = flags.EnvFlagSet;
+pub const envFlagsToInt = flags.envFlagsToInt;
 
-/// 环境标志
-/// 注意: MDBX_ENV_DEFAULTS 和 MDBX_SYNC_DURABLE 的值都是 0
-/// 因此只保留 defaults，sync_durable 可以通过 defaults 来表示
-pub const EnvFlags = enum(c.MDBX_env_flags_t) {
-    defaults = c.MDBX_ENV_DEFAULTS,
-    validation = c.MDBX_VALIDATION,
-    no_sub_dir = c.MDBX_NOSUBDIR,
-    read_only = c.MDBX_RDONLY,
-    exclusive = c.MDBX_EXCLUSIVE,
-    accede = c.MDBX_ACCEDE,
-    write_map = c.MDBX_WRITEMAP,
-    no_tls = c.MDBX_NOTLS,
-    no_read_ahead = c.MDBX_NORDAHEAD,
-    no_mem_init = c.MDBX_NOMEMINIT,
-    coalesce = c.MDBX_COALESCE,
-    lifo_reclaim = c.MDBX_LIFORECLAIM,
-    page_perturb = c.MDBX_PAGEPERTURB,
-    no_meta_sync = c.MDBX_NOMETASYNC,
-    safe_no_sync = c.MDBX_SAFE_NOSYNC,
-    utterly_no_sync = c.MDBX_UTTERLY_NOSYNC,
-};
+pub const DBFlag = flags.DBFlag;
+pub const DBFlagSet = flags.DBFlagSet;
+pub const dbFlagsToInt = flags.dbFlagsToInt;
 
-/// 数据库标志
-pub const DBFlags = enum(c.MDBX_db_flags_t) {
-    defaults = c.MDBX_DB_DEFAULTS,
-    reverse_key = c.MDBX_REVERSEKEY,
-    dup_sort = c.MDBX_DUPSORT,
-    integer_key = c.MDBX_INTEGERKEY,
-    dup_fixed = c.MDBX_DUPFIXED,
-    integer_dup = c.MDBX_INTEGERDUP,
-    reverse_dup = c.MDBX_REVERSEDUP,
-    create = c.MDBX_CREATE,
-    db_accede = c.MDBX_DB_ACCEDE,
-};
+pub const CopyFlag = flags.CopyFlag;
+pub const CopyFlagSet = flags.CopyFlagSet;
+pub const copyFlagsToInt = flags.copyFlagsToInt;
 
-/// 复制标志
-pub const CopyFlags = enum(c.MDBX_copy_flags_t) {
-    defaults = c.MDBX_CP_DEFAULTS,
-    compact = c.MDBX_CP_COMPACT,
-    force_dynamic_size = c.MDBX_CP_FORCE_DYNAMIC_SIZE,
-};
-
-/// DBI 状态
-pub const DBIState = enum(c.MDBX_dbi_state_t) {
-    dirty = c.MDBX_DBI_DIRTY,
-    stale = c.MDBX_DBI_STALE,
-    fresh = c.MDBX_DBI_FRESH,
-    creat = c.MDBX_DBI_CREAT,
-};
-
-/// 删除模式
-pub const DeleteMode = enum(c.MDBX_env_delete_mode_t) {
-    just_delete = c.MDBX_ENV_JUST_DELETE,
-    ensure_unused = c.MDBX_ENV_ENSURE_UNUSED,
-    wait_for_unused = c.MDBX_ENV_WAIT_UNUSED,
-};
+pub const DBIState = flags.DBIState;
+pub const DeleteMode = flags.DeleteMode;
 
 /// MDBX 环境句柄
 pub const Env = struct {
@@ -225,7 +175,7 @@ pub const Env = struct {
 
     /// 获取最大键大小
     pub fn getMaxKeySize(self: *Self) errors.MDBXError!c_int {
-        const size = c.mdbx_env_get_maxkeysize_ex(self.env, @intFromEnum(DBFlags.defaults));
+        const size = c.mdbx_env_get_maxkeysize_ex(self.env, c.MDBX_DB_DEFAULTS);
         if (size < 0) {
             return errors.toError(@intCast(-size));
         }
@@ -233,34 +183,49 @@ pub const Env = struct {
     }
 
     /// 设置环境标志
-    pub fn setFlags(self: *Self, flags: EnvFlags, onoff: bool) errors.MDBXError!void {
-        const rc = c.mdbx_env_set_flags(self.env, @intFromEnum(flags), onoff);
+    pub fn setFlags(self: *Self, flags_set: EnvFlagSet, onoff: bool) errors.MDBXError!void {
+        const c_flags = envFlagsToInt(flags_set);
+        const rc = c.mdbx_env_set_flags(self.env, c_flags, onoff);
         try errors.checkError(rc);
     }
 
     /// 获取环境标志
     pub fn getFlags(self: *Self) errors.MDBXError!c_uint {
-        var flags: c_uint = 0;
-        const rc = c.mdbx_env_get_flags(self.env, &flags);
+        var env_flags_raw: c_uint = 0;
+        const rc = c.mdbx_env_get_flags(self.env, &env_flags_raw);
         try errors.checkError(rc);
-        return flags;
+        return env_flags_raw;
     }
 
     /// 复制环境到指定路径
-    pub fn copy(self: *Self, path: [*:0]const u8, flags: CopyFlags) errors.MDBXError!void {
-        const rc = c.mdbx_env_copy(self.env, path, @intFromEnum(flags));
+    pub fn copy(self: *Self, path: [*:0]const u8, flags_set: CopyFlagSet) errors.MDBXError!void {
+        const c_flags = copyFlagsToInt(flags_set);
+        const rc = c.mdbx_env_copy(self.env, path, c_flags);
         try errors.checkError(rc);
     }
 
     /// 打开环境
-    pub fn open(self: *Self, path: [*:0]const u8, flags: EnvFlags, mode: c.mdbx_mode_t) errors.MDBXError!void {
-        const rc = c.mdbx_env_open(self.env, path, @intFromEnum(flags), mode);
+    pub fn open(self: *Self, path: [*:0]const u8, flags_set: EnvFlagSet, mode: c.mdbx_mode_t) errors.MDBXError!void {
+        const c_flags = envFlagsToInt(flags_set);
+        const rc = c.mdbx_env_open(self.env, path, c_flags, mode);
         try errors.checkError(rc);
     }
 
     /// 开始新事务
-    pub fn beginTxn(self: *Self, parent: ?*c.MDBX_txn, flags: TxFlags) errors.MDBXError!Txn {
-        return Txn.init(self.env.?, parent, flags);
+    pub fn beginTxn(self: *Self, parent: ?*c.MDBX_txn, flags_set: flags.TxFlagSet) errors.MDBXError!Txn {
+        return Txn.init(self.env.?, parent, flags_set);
+    }
+
+    /// 便利方法：开始只读事务
+    pub fn beginReadTxn(self: *Self) errors.MDBXError!Txn {
+        var txflags = flags.TxFlagSet.init(.{});
+        txflags.insert(.read_only);
+        return self.beginTxn(null, txflags);
+    }
+
+    /// 便利方法：开始读写事务
+    pub fn beginWriteTxn(self: *Self) errors.MDBXError!Txn {
+        return self.beginTxn(null, flags.TxFlagSet.init(.{}));
     }
 
     /// 删除环境（静态方法）
@@ -269,3 +234,9 @@ pub const Env = struct {
         try errors.checkError(rc);
     }
 };
+
+// 为了向后兼容，提供旧API的便利方法
+/// 使用默认标志打开环境
+pub fn openDefault(env: *Env, path: [*:0]const u8, mode: c.mdbx_mode_t) errors.MDBXError!void {
+    return env.open(path, EnvFlagSet.init(.{}), mode);
+}

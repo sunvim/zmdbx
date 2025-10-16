@@ -175,3 +175,70 @@ pub fn beginReadTxn(env: *c.MDBX_env) errors.MDBXError!Txn {
 pub fn beginWriteTxn(env: *c.MDBX_env) errors.MDBXError!Txn {
     return Txn.init(env, null, TxFlagSet.init(.{}));
 }
+
+/// 事务守卫 (RAII 模式)
+///
+/// TxnGuard 自动管理事务生命周期：
+/// - 如果没有显式 commit，deinit 时会自动 abort
+/// - 防止忘记清理事务导致的资源泄漏
+/// - 提供更安全的事务管理
+///
+/// 使用示例：
+/// ```zig
+/// var guard = try TxnGuard.init(&env, null, TxFlagSet.init(.{}));
+/// defer guard.deinit();  // 自动 abort 如果未 commit
+///
+/// const dbi = try guard.txn.openDBI(null, DBFlagSet.init(.{ .create = true }));
+/// try guard.txn.put(dbi, "key", "value", PutFlagSet.init(.{}));
+/// try guard.commit();  // 显式 commit
+/// ```
+pub const TxnGuard = struct {
+    txn: Txn,
+    committed: bool = false,
+
+    const Self = @This();
+
+    /// 创建新的事务守卫
+    pub fn init(env: *c.MDBX_env, parent: ?*c.MDBX_txn, flags_set: TxFlagSet) errors.MDBXError!Self {
+        return .{
+            .txn = try Txn.init(env, parent, flags_set),
+        };
+    }
+
+    /// 清理事务
+    ///
+    /// 如果事务未提交，会自动中止。
+    pub fn deinit(self: *Self) void {
+        if (!self.committed) {
+            self.txn.abort();
+        }
+    }
+
+    /// 提交事务
+    ///
+    /// 成功后将 committed 标记设为 true，
+    /// 这样 deinit 就不会再次 abort。
+    pub fn commit(self: *Self) errors.MDBXError!void {
+        try self.txn.commit();
+        self.committed = true;
+    }
+
+    /// 显式中止事务
+    ///
+    /// 调用后 committed 标记设为 true，
+    /// 防止 deinit 时重复 abort。
+    pub fn abort(self: *Self) void {
+        self.txn.abort();
+        self.committed = true; // 标记为已处理
+    }
+
+    /// 重置只读事务
+    pub fn reset(self: *Self) errors.MDBXError!void {
+        return self.txn.reset();
+    }
+
+    /// 续订只读事务
+    pub fn renew(self: *Self) errors.MDBXError!void {
+        return self.txn.renew();
+    }
+};

@@ -1,5 +1,5 @@
-// MDBX 同步模式性能对比测试
-// 使用栈上缓冲区避免堆分配,优化性能
+// MDBX 同步模式性能对比测试 - 优化版本
+// 消除内存分配瓶颈,使用栈上缓冲区和复用
 
 const std = @import("std");
 const zmdbx = @import("zmdbx");
@@ -24,7 +24,7 @@ fn printResult(result: BenchResult) void {
 
 pub fn main() !void {
     std.debug.print("\n╔════════════════════════════════════════════════════════════════════════════╗\n", .{});
-    std.debug.print("║              MDBX 同步模式性能与安全性对比测试                            ║\n", .{});
+    std.debug.print("║              MDBX 同步模式性能与安全性对比测试 (优化版)                  ║\n", .{});
     std.debug.print("╚════════════════════════════════════════════════════════════════════════════╝\n\n", .{});
 
     std.debug.print("模式                 |    操作数   |   耗时   |     吞吐量    | 数据安全等级\n", .{});
@@ -65,10 +65,10 @@ pub fn main() !void {
 
 fn cleanupTestData() void {
     const test_paths = [_][]const u8{
-        "./bench_sync_durable",
-        "./bench_safe_nosync",
-        "./bench_no_meta_sync",
-        "./bench_utterly_nosync",
+        "./bench_sync_durable_opt",
+        "./bench_safe_nosync_opt",
+        "./bench_no_meta_sync_opt",
+        "./bench_utterly_nosync_opt",
     };
 
     for (test_paths) |path| {
@@ -89,7 +89,7 @@ inline fn formatValue(buf: []u8, i: usize) []const u8 {
 
 /// 1. SYNC_DURABLE 模式 (默认,最安全)
 fn benchSyncDurable() !void {
-    const test_path = "./bench_sync_durable";
+    const test_path = "./bench_sync_durable_opt";
     std.fs.cwd().deleteTree(test_path) catch {};
 
     var env = try zmdbx.Env.init();
@@ -143,7 +143,7 @@ fn benchSyncDurable() !void {
 
 /// 2. SAFE_NOSYNC 模式 (推荐生产)
 fn benchSafeNoSync() !void {
-    const test_path = "./bench_safe_nosync";
+    const test_path = "./bench_safe_nosync_opt";
     std.fs.cwd().deleteTree(test_path) catch {};
 
     var env = try zmdbx.Env.init();
@@ -208,7 +208,7 @@ fn benchSafeNoSync() !void {
 
 /// 3. NOMETASYNC 模式
 fn benchNoMetaSync() !void {
-    const test_path = "./bench_no_meta_sync";
+    const test_path = "./bench_no_meta_sync_opt";
     std.fs.cwd().deleteTree(test_path) catch {};
 
     var env = try zmdbx.Env.init();
@@ -267,7 +267,7 @@ fn benchNoMetaSync() !void {
 
 /// 4. UTTERLY_NOSYNC 模式 (危险,仅测试用)
 fn benchUtterlyNoSync() !void {
-    const test_path = "./bench_utterly_nosync";
+    const test_path = "./bench_utterly_nosync_opt";
     std.fs.cwd().deleteTree(test_path) catch {};
 
     var env = try zmdbx.Env.init();

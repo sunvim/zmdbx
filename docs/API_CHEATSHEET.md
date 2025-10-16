@@ -219,6 +219,8 @@ const retrieved = try stored_val.to_i32();
 
 #### 支持的类型
 
+**整数类型**：
+
 | 类型 | from方法 | to方法 | 示例 |
 |------|---------|--------|------|
 | i8 | `from_i8(v)` | `to_i8()` | -128 ~ 127 |
@@ -231,6 +233,17 @@ const retrieved = try stored_val.to_i32();
 | u32 | `from_u32(v)` | `to_u32()` | 0 ~ 42亿 |
 | u64 | `from_u64(v)` | `to_u64()` | 0 ~ 1844京 |
 | u128 | `from_u128(v)` | `to_u128()` | 超大无符号整数 |
+
+**浮点数类型**：
+
+| 类型 | from方法 | to方法 | 描述 |
+|------|---------|--------|------|
+| f16 | `from_f16(v)` | `to_f16()` | 半精度浮点数 |
+| f32 | `from_f32(v)` | `to_f32()` | 单精度浮点数 |
+| f64 | `from_f64(v)` | `to_f64()` | 双精度浮点数 |
+| f80 | `from_f80(v)` | `to_f80()` | x86扩展精度 |
+| f128 | `from_f128(v)` | `to_f128()` | 四倍精度浮点数 |
+| c_longdouble | `from_c_longdouble(v)` | `to_c_longdouble()` | C long double |
 
 ⚠️ **注意**: 所有类型化方法使用原生字节序，跨架构场景需要注意兼容性。
 

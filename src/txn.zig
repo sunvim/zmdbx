@@ -161,6 +161,207 @@ pub const Txn = struct {
         const rc = c.mdbx_del(self.txn, dbi, key_val.asPtr(), data_ptr);
         try errors.checkError(rc);
     }
+
+    // ==================== 类型化便捷方法 ====================
+    // 以下方法提供类型安全的数据存取，自动处理类型转换
+
+    // ---------- 有符号整数类型 ----------
+
+    /// 读取i8类型的值
+    pub inline fn get_i8(self: *Self, dbi: DBI, key: []const u8) errors.MDBXError!i8 {
+        const val = try self.get(dbi, key);
+        return val.to_i8();
+    }
+
+    /// 存储i8类型的值
+    pub inline fn put_i8(self: *Self, dbi: DBI, key: []const u8, value: i8, flags_set: PutFlagSet) errors.MDBXError!void {
+        const val = Val.from_i8(value);
+        return self.put(dbi, key, val.toBytes(), flags_set);
+    }
+
+    /// 读取i16类型的值
+    pub inline fn get_i16(self: *Self, dbi: DBI, key: []const u8) errors.MDBXError!i16 {
+        const val = try self.get(dbi, key);
+        return val.to_i16();
+    }
+
+    /// 存储i16类型的值
+    pub inline fn put_i16(self: *Self, dbi: DBI, key: []const u8, value: i16, flags_set: PutFlagSet) errors.MDBXError!void {
+        const val = Val.from_i16(value);
+        return self.put(dbi, key, val.toBytes(), flags_set);
+    }
+
+    /// 读取i32类型的值
+    pub inline fn get_i32(self: *Self, dbi: DBI, key: []const u8) errors.MDBXError!i32 {
+        const val = try self.get(dbi, key);
+        return val.to_i32();
+    }
+
+    /// 存储i32类型的值
+    pub inline fn put_i32(self: *Self, dbi: DBI, key: []const u8, value: i32, flags_set: PutFlagSet) errors.MDBXError!void {
+        const val = Val.from_i32(value);
+        return self.put(dbi, key, val.toBytes(), flags_set);
+    }
+
+    /// 读取i64类型的值
+    pub inline fn get_i64(self: *Self, dbi: DBI, key: []const u8) errors.MDBXError!i64 {
+        const val = try self.get(dbi, key);
+        return val.to_i64();
+    }
+
+    /// 存储i64类型的值
+    pub inline fn put_i64(self: *Self, dbi: DBI, key: []const u8, value: i64, flags_set: PutFlagSet) errors.MDBXError!void {
+        const val = Val.from_i64(value);
+        return self.put(dbi, key, val.toBytes(), flags_set);
+    }
+
+    /// 读取i128类型的值
+    pub inline fn get_i128(self: *Self, dbi: DBI, key: []const u8) errors.MDBXError!i128 {
+        const val = try self.get(dbi, key);
+        return val.to_i128();
+    }
+
+    /// 存储i128类型的值
+    pub inline fn put_i128(self: *Self, dbi: DBI, key: []const u8, value: i128, flags_set: PutFlagSet) errors.MDBXError!void {
+        const val = Val.from_i128(value);
+        return self.put(dbi, key, val.toBytes(), flags_set);
+    }
+
+    // ---------- 无符号整数类型 ----------
+
+    /// 读取u8类型的值
+    pub inline fn get_u8(self: *Self, dbi: DBI, key: []const u8) errors.MDBXError!u8 {
+        const val = try self.get(dbi, key);
+        return val.to_u8();
+    }
+
+    /// 存储u8类型的值
+    pub inline fn put_u8(self: *Self, dbi: DBI, key: []const u8, value: u8, flags_set: PutFlagSet) errors.MDBXError!void {
+        const val = Val.from_u8(value);
+        return self.put(dbi, key, val.toBytes(), flags_set);
+    }
+
+    /// 读取u16类型的值
+    pub inline fn get_u16(self: *Self, dbi: DBI, key: []const u8) errors.MDBXError!u16 {
+        const val = try self.get(dbi, key);
+        return val.to_u16();
+    }
+
+    /// 存储u16类型的值
+    pub inline fn put_u16(self: *Self, dbi: DBI, key: []const u8, value: u16, flags_set: PutFlagSet) errors.MDBXError!void {
+        const val = Val.from_u16(value);
+        return self.put(dbi, key, val.toBytes(), flags_set);
+    }
+
+    /// 读取u32类型的值
+    pub inline fn get_u32(self: *Self, dbi: DBI, key: []const u8) errors.MDBXError!u32 {
+        const val = try self.get(dbi, key);
+        return val.to_u32();
+    }
+
+    /// 存储u32类型的值
+    pub inline fn put_u32(self: *Self, dbi: DBI, key: []const u8, value: u32, flags_set: PutFlagSet) errors.MDBXError!void {
+        const val = Val.from_u32(value);
+        return self.put(dbi, key, val.toBytes(), flags_set);
+    }
+
+    /// 读取u64类型的值
+    pub inline fn get_u64(self: *Self, dbi: DBI, key: []const u8) errors.MDBXError!u64 {
+        const val = try self.get(dbi, key);
+        return val.to_u64();
+    }
+
+    /// 存储u64类型的值
+    pub inline fn put_u64(self: *Self, dbi: DBI, key: []const u8, value: u64, flags_set: PutFlagSet) errors.MDBXError!void {
+        const val = Val.from_u64(value);
+        return self.put(dbi, key, val.toBytes(), flags_set);
+    }
+
+    /// 读取u128类型的值
+    pub inline fn get_u128(self: *Self, dbi: DBI, key: []const u8) errors.MDBXError!u128 {
+        const val = try self.get(dbi, key);
+        return val.to_u128();
+    }
+
+    /// 存储u128类型的值
+    pub inline fn put_u128(self: *Self, dbi: DBI, key: []const u8, value: u128, flags_set: PutFlagSet) errors.MDBXError!void {
+        const val = Val.from_u128(value);
+        return self.put(dbi, key, val.toBytes(), flags_set);
+    }
+
+    // ---------- 浮点数类型 ----------
+
+    /// 读取f16类型的值
+    pub inline fn get_f16(self: *Self, dbi: DBI, key: []const u8) errors.MDBXError!f16 {
+        const val = try self.get(dbi, key);
+        return val.to_f16();
+    }
+
+    /// 存储f16类型的值
+    pub inline fn put_f16(self: *Self, dbi: DBI, key: []const u8, value: f16, flags_set: PutFlagSet) errors.MDBXError!void {
+        const val = Val.from_f16(value);
+        return self.put(dbi, key, val.toBytes(), flags_set);
+    }
+
+    /// 读取f32类型的值
+    pub inline fn get_f32(self: *Self, dbi: DBI, key: []const u8) errors.MDBXError!f32 {
+        const val = try self.get(dbi, key);
+        return val.to_f32();
+    }
+
+    /// 存储f32类型的值
+    pub inline fn put_f32(self: *Self, dbi: DBI, key: []const u8, value: f32, flags_set: PutFlagSet) errors.MDBXError!void {
+        const val = Val.from_f32(value);
+        return self.put(dbi, key, val.toBytes(), flags_set);
+    }
+
+    /// 读取f64类型的值
+    pub inline fn get_f64(self: *Self, dbi: DBI, key: []const u8) errors.MDBXError!f64 {
+        const val = try self.get(dbi, key);
+        return val.to_f64();
+    }
+
+    /// 存储f64类型的值
+    pub inline fn put_f64(self: *Self, dbi: DBI, key: []const u8, value: f64, flags_set: PutFlagSet) errors.MDBXError!void {
+        const val = Val.from_f64(value);
+        return self.put(dbi, key, val.toBytes(), flags_set);
+    }
+
+    /// 读取f80类型的值
+    pub inline fn get_f80(self: *Self, dbi: DBI, key: []const u8) errors.MDBXError!f80 {
+        const val = try self.get(dbi, key);
+        return val.to_f80();
+    }
+
+    /// 存储f80类型的值
+    pub inline fn put_f80(self: *Self, dbi: DBI, key: []const u8, value: f80, flags_set: PutFlagSet) errors.MDBXError!void {
+        const val = Val.from_f80(value);
+        return self.put(dbi, key, val.toBytes(), flags_set);
+    }
+
+    /// 读取f128类型的值
+    pub inline fn get_f128(self: *Self, dbi: DBI, key: []const u8) errors.MDBXError!f128 {
+        const val = try self.get(dbi, key);
+        return val.to_f128();
+    }
+
+    /// 存储f128类型的值
+    pub inline fn put_f128(self: *Self, dbi: DBI, key: []const u8, value: f128, flags_set: PutFlagSet) errors.MDBXError!void {
+        const val = Val.from_f128(value);
+        return self.put(dbi, key, val.toBytes(), flags_set);
+    }
+
+    /// 读取c_longdouble类型的值
+    pub inline fn get_c_longdouble(self: *Self, dbi: DBI, key: []const u8) errors.MDBXError!c_longdouble {
+        const val = try self.get(dbi, key);
+        return val.to_c_longdouble();
+    }
+
+    /// 存储c_longdouble类型的值
+    pub inline fn put_c_longdouble(self: *Self, dbi: DBI, key: []const u8, value: c_longdouble, flags_set: PutFlagSet) errors.MDBXError!void {
+        const val = Val.from_c_longdouble(value);
+        return self.put(dbi, key, val.toBytes(), flags_set);
+    }
 };
 
 // 向后兼容的便利函数

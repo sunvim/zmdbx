@@ -264,3 +264,265 @@ test "Val typed API - roundtrip all unsigned types" {
         try testing.expectEqual(v, try Val.from_u128(v).to_u128());
     }
 }
+
+// ==================== 浮点数测试 ====================
+
+test "Val.from_f32 and to_f32" {
+    const value: f32 = 3.14159;
+    const val = Val.from_f32(value);
+    const result = try val.to_f32();
+    try testing.expectEqual(value, result);
+}
+
+test "Val.from_f32 and to_f32 - negative" {
+    const value: f32 = -123.456;
+    const val = Val.from_f32(value);
+    const result = try val.to_f32();
+    try testing.expectEqual(value, result);
+}
+
+test "Val.from_f32 and to_f32 - zero" {
+    const value: f32 = 0.0;
+    const val = Val.from_f32(value);
+    const result = try val.to_f32();
+    try testing.expectEqual(value, result);
+}
+
+test "Val.from_f32 and to_f32 - special values" {
+    // 测试特殊浮点数值
+    const inf = std.math.inf(f32);
+    const neg_inf = -std.math.inf(f32);
+
+    try testing.expectEqual(inf, try Val.from_f32(inf).to_f32());
+    try testing.expectEqual(neg_inf, try Val.from_f32(neg_inf).to_f32());
+}
+
+test "Val.from_f64 and to_f64" {
+    const value: f64 = 3.141592653589793;
+    const val = Val.from_f64(value);
+    const result = try val.to_f64();
+    try testing.expectEqual(value, result);
+}
+
+test "Val.from_f64 and to_f64 - negative" {
+    const value: f64 = -123456.789012;
+    const val = Val.from_f64(value);
+    const result = try val.to_f64();
+    try testing.expectEqual(value, result);
+}
+
+test "Val.from_f64 and to_f64 - zero" {
+    const value: f64 = 0.0;
+    const val = Val.from_f64(value);
+    const result = try val.to_f64();
+    try testing.expectEqual(value, result);
+}
+
+test "Val.from_f64 and to_f64 - special values" {
+    const inf = std.math.inf(f64);
+    const neg_inf = -std.math.inf(f64);
+
+    try testing.expectEqual(inf, try Val.from_f64(inf).to_f64());
+    try testing.expectEqual(neg_inf, try Val.from_f64(neg_inf).to_f64());
+}
+
+test "Val.from_f64 and to_f64 - very small number" {
+    const value: f64 = 1.23e-308;
+    const val = Val.from_f64(value);
+    const result = try val.to_f64();
+    try testing.expectEqual(value, result);
+}
+
+test "Val.from_f64 and to_f64 - very large number" {
+    const value: f64 = 1.23e308;
+    const val = Val.from_f64(value);
+    const result = try val.to_f64();
+    try testing.expectEqual(value, result);
+}
+
+test "Val typed API - roundtrip float types" {
+    // 测试浮点类型的往返转换
+    {
+        const v: f32 = 2.718281828;
+        try testing.expectEqual(v, try Val.from_f32(v).to_f32());
+    }
+    {
+        const v: f64 = 2.718281828459045;
+        try testing.expectEqual(v, try Val.from_f64(v).to_f64());
+    }
+}
+
+test "Val.to_f32 with wrong length - error" {
+    // 创建一个f64的Val，尝试转换为f32应该失败
+    const value: f64 = 3.14;
+    const val = Val.from_f64(value);
+    const result = val.to_f32();
+    try testing.expectError(error.InvalidDataLength, result);
+}
+
+test "Val typed API - practical usage with floats" {
+    // 模拟实际使用场景：存储物理量
+    const temperature: f32 = 36.5;  // 体温
+    const pi: f64 = 3.141592653589793;  // 圆周率
+
+    // 创建Val
+    const temp_val = Val.from_f32(temperature);
+    const pi_val = Val.from_f64(pi);
+
+    // 转换回来
+    const temp = try temp_val.to_f32();
+    const pi_result = try pi_val.to_f64();
+
+    // 验证
+    try testing.expectEqual(temperature, temp);
+    try testing.expectEqual(pi, pi_result);
+}
+
+// ==================== 其他浮点数类型测试 ====================
+
+test "Val.from_f16 and to_f16" {
+    const value: f16 = 3.14;
+    const val = Val.from_f16(value);
+    const result = try val.to_f16();
+    try testing.expectEqual(value, result);
+}
+
+test "Val.from_f16 and to_f16 - negative" {
+    const value: f16 = -123.5;
+    const val = Val.from_f16(value);
+    const result = try val.to_f16();
+    try testing.expectEqual(value, result);
+}
+
+test "Val.from_f16 and to_f16 - zero" {
+    const value: f16 = 0.0;
+    const val = Val.from_f16(value);
+    const result = try val.to_f16();
+    try testing.expectEqual(value, result);
+}
+
+test "Val.from_f80 and to_f80" {
+    const value: f80 = 3.141592653589793238;
+    const val = Val.from_f80(value);
+    const result = try val.to_f80();
+    try testing.expectEqual(value, result);
+}
+
+test "Val.from_f80 and to_f80 - negative" {
+    const value: f80 = -123456.789012345;
+    const val = Val.from_f80(value);
+    const result = try val.to_f80();
+    try testing.expectEqual(value, result);
+}
+
+test "Val.from_f80 and to_f80 - zero" {
+    const value: f80 = 0.0;
+    const val = Val.from_f80(value);
+    const result = try val.to_f80();
+    try testing.expectEqual(value, result);
+}
+
+test "Val.from_f128 and to_f128" {
+    const value: f128 = 3.14159265358979323846264338327950288;
+    const val = Val.from_f128(value);
+    const result = try val.to_f128();
+    try testing.expectEqual(value, result);
+}
+
+test "Val.from_f128 and to_f128 - negative" {
+    const value: f128 = -1.23456789012345678901234567890123e30;
+    const val = Val.from_f128(value);
+    const result = try val.to_f128();
+    try testing.expectEqual(value, result);
+}
+
+test "Val.from_f128 and to_f128 - zero" {
+    const value: f128 = 0.0;
+    const val = Val.from_f128(value);
+    const result = try val.to_f128();
+    try testing.expectEqual(value, result);
+}
+
+test "Val.from_f128 and to_f128 - very small number" {
+    const value: f128 = 1.23e-4000;
+    const val = Val.from_f128(value);
+    const result = try val.to_f128();
+    try testing.expectEqual(value, result);
+}
+
+test "Val.from_f128 and to_f128 - very large number" {
+    const value: f128 = 1.23e4000;
+    const val = Val.from_f128(value);
+    const result = try val.to_f128();
+    try testing.expectEqual(value, result);
+}
+
+test "Val.from_c_longdouble and to_c_longdouble" {
+    const value: c_longdouble = 3.141592653589793;
+    const val = Val.from_c_longdouble(value);
+    const result = try val.to_c_longdouble();
+    try testing.expectEqual(value, result);
+}
+
+test "Val.from_c_longdouble and to_c_longdouble - negative" {
+    const value: c_longdouble = -123456.789012;
+    const val = Val.from_c_longdouble(value);
+    const result = try val.to_c_longdouble();
+    try testing.expectEqual(value, result);
+}
+
+test "Val.from_c_longdouble and to_c_longdouble - zero" {
+    const value: c_longdouble = 0.0;
+    const val = Val.from_c_longdouble(value);
+    const result = try val.to_c_longdouble();
+    try testing.expectEqual(value, result);
+}
+
+test "Val.to_f16 with wrong length - error" {
+    const value: f32 = 3.14;
+    const val = Val.from_f32(value);
+    const result = val.to_f16();
+    try testing.expectError(error.InvalidDataLength, result);
+}
+
+test "Val.to_f80 with wrong length - error" {
+    const value: f64 = 3.14;
+    const val = Val.from_f64(value);
+    const result = val.to_f80();
+    try testing.expectError(error.InvalidDataLength, result);
+}
+
+test "Val.to_f128 with wrong length - error" {
+    const value: f64 = 3.14;
+    const val = Val.from_f64(value);
+    const result = val.to_f128();
+    try testing.expectError(error.InvalidDataLength, result);
+}
+
+test "Val typed API - roundtrip all float types" {
+    // 测试所有浮点类型的往返转换
+    {
+        const v: f16 = 1.5;
+        try testing.expectEqual(v, try Val.from_f16(v).to_f16());
+    }
+    {
+        const v: f32 = 2.718281828;
+        try testing.expectEqual(v, try Val.from_f32(v).to_f32());
+    }
+    {
+        const v: f64 = 2.718281828459045;
+        try testing.expectEqual(v, try Val.from_f64(v).to_f64());
+    }
+    {
+        const v: f80 = 2.71828182845904523536;
+        try testing.expectEqual(v, try Val.from_f80(v).to_f80());
+    }
+    {
+        const v: f128 = 2.7182818284590452353602874713527;
+        try testing.expectEqual(v, try Val.from_f128(v).to_f128());
+    }
+    {
+        const v: c_longdouble = 3.14159;
+        try testing.expectEqual(v, try Val.from_c_longdouble(v).to_c_longdouble());
+    }
+}

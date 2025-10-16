@@ -235,21 +235,34 @@ const age_read = try val.to_u32();  // 自动验证长度！
 **支持的类型**：
 - 有符号整数：`i8`, `i16`, `i32`, `i64`, `i128`
 - 无符号整数：`u8`, `u16`, `u32`, `u64`, `u128`
+- 浮点数：`f16`, `f32`, `f64`, `f80`, `f128`, `c_longdouble`
 
 **实际使用示例**：
 
 ```zig
-// 游戏玩家数据
+// 游戏玩家数据（整数）
 try txn.put(dbi, "player:score", zmdbx.Val.from_i32(1500).toBytes(), put_flags);
 try txn.put(dbi, "player:level", zmdbx.Val.from_u8(25).toBytes(), put_flags);
 try txn.put(dbi, "player:gold", zmdbx.Val.from_u64(999999).toBytes(), put_flags);
 
-// 读取
+// 读取整数
 const score = try (try txn.get(dbi, "player:score")).to_i32();
 const level = try (try txn.get(dbi, "player:level")).to_u8();
 const gold = try (try txn.get(dbi, "player:gold")).to_u64();
 
 std.debug.print("分数: {}, 等级: {}, 金币: {}\n", .{score, level, gold});
+
+// 物理量存储（浮点数）
+try txn.put(dbi, "physics:temperature", zmdbx.Val.from_f32(36.5).toBytes(), put_flags);
+try txn.put(dbi, "physics:pi", zmdbx.Val.from_f64(3.141592653589793).toBytes(), put_flags);
+try txn.put(dbi, "physics:planck", zmdbx.Val.from_f128(6.62607015e-34).toBytes(), put_flags);
+
+// 读取浮点数
+const temp = try (try txn.get(dbi, "physics:temperature")).to_f32();
+const pi = try (try txn.get(dbi, "physics:pi")).to_f64();
+const planck = try (try txn.get(dbi, "physics:planck")).to_f128();
+
+std.debug.print("温度: {}°C, 圆周率: {}, 普朗克常数: {}\n", .{temp, pi, planck});
 ```
 
 ⚠️ **注意**：所有类型化方法使用原生字节序，跨架构场景需要注意兼容性。

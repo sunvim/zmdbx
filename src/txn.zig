@@ -2,72 +2,25 @@ const std = @import("std");
 const c = @import("c.zig").c;
 
 const errors = @import("errors.zig");
-const Env = @import("env.zig");
+const types = @import("types.zig");
+const flags = @import("flags.zig");
 
-/// 事务标志
-pub const TxFlags = enum(c.MDBX_txn_flags_t) {
-    /// 启动读写事务
-    ///
-    /// 一次只能有一个写事务处于活动状态。写操作完全序列化，
-    /// 这保证了写入者永远不会死锁。
-    read_write = c.MDBX_TXN_READWRITE,
+// 重新导出类型，保持向后兼容
+pub const DBI = types.DBI;
+pub const TxInfo = types.TxInfo;
+pub const Val = types.Val;
 
-    /// 启动只读事务
-    ///
-    /// 可以有多个只读事务同时运行，它们不会相互阻塞，
-    /// 也不会阻塞写事务。
-    read_only = c.MDBX_TXN_RDONLY,
+pub const TxFlag = flags.TxFlag;
+pub const TxFlagSet = flags.TxFlagSet;
+pub const txFlagsToInt = flags.txFlagsToInt;
 
-    /// 准备但不启动只读事务
-    ///
-    /// 事务不会立即启动，但创建的事务句柄可以用于 mdbx_txn_renew()。
-    /// 此标志允许预分配内存并分配读取器槽，从而避免在下次启动事务时执行这些操作。
-    read_only_prepare = c.MDBX_TXN_RDONLY_PREPARE,
+pub const PutFlag = flags.PutFlag;
+pub const PutFlagSet = flags.PutFlagSet;
+pub const putFlagsToInt = flags.putFlagsToInt;
 
-    /// 启动写事务时不阻塞
-    try_start = c.MDBX_TXN_TRY,
-
-    /// 与 MDBX_NOMETASYNC 完全相同，但仅针对此事务
-    no_meta_sync = c.MDBX_TXN_NOMETASYNC,
-
-    /// 与 MDBX_SAFE_NOSYNC 完全相同，但仅针对此事务
-    no_sync = c.MDBX_TXN_NOSYNC,
-};
-
-/// Put 操作标志
-pub const PutFlags = enum(c.MDBX_put_flags_t) {
-    /// 默认的更新插入操作（没有其他标志）
-    upsert = c.MDBX_UPSERT,
-
-    /// 如果键已存在则不写入
-    no_overwrite = c.MDBX_NOOVERWRITE,
-
-    /// 如果键和数据对已存在则不写入
-    no_dup_data = c.MDBX_NODUPDATA,
-
-    /// 将当前键的数据更新为新数据
-    current = c.MDBX_CURRENT,
-
-    /// 仅对 MDBX_DUPSORT 数据库有效
-    /// 删除：删除给定键的所有多值（又名重复项）
-    /// 更新插入：用新值替换给定键的所有多值
-    all_dups = c.MDBX_ALLDUPS,
-
-    /// 为数据预留空间，但不写入
-    reserve = c.MDBX_RESERVE,
-
-    /// 将数据追加到数据库末尾
-    append = c.MDBX_APPEND,
-
-    /// 将数据追加到数据库末尾
-    append_dup = c.MDBX_APPENDDUP,
-
-    /// 仅用于 MDBX_DUPFIXED，在一次调用中存储多个数据项
-    multiple = c.MDBX_MULTIPLE,
-};
-
-/// 事务信息
-pub const TxInfo = c.MDBX_txn_info;
+pub const DBFlag = flags.DBFlag;
+pub const DBFlagSet = flags.DBFlagSet;
+pub const dbFlagsToInt = flags.dbFlagsToInt;
 
 /// 事务句柄
 pub const Txn = struct {
@@ -77,9 +30,10 @@ pub const Txn = struct {
     const Self = @This();
 
     /// 创建新事务
-    pub fn init(env: *c.MDBX_env, parent: ?*c.MDBX_txn, flags: TxFlags) errors.MDBXError!Self {
+    pub fn init(env: *c.MDBX_env, parent: ?*c.MDBX_txn, flags_set: TxFlagSet) errors.MDBXError!Self {
         var txn: ?*c.MDBX_txn = null;
-        const rc = c.mdbx_txn_begin(env, parent, @intFromEnum(flags), &txn);
+        const c_flags = txFlagsToInt(flags_set);
+        const rc = c.mdbx_txn_begin(env, parent, c_flags, &txn);
         try errors.checkError(rc);
         return Self{
             .env = env,
@@ -132,61 +86,92 @@ pub const Txn = struct {
     }
 
     /// 打开数据库实例
-    pub fn openDBI(self: *Self, name: ?[*:0]const u8, flags: Env.DBFlags) errors.MDBXError!Env.DBI {
-        var dbi: Env.DBI = undefined;
-        const rc = c.mdbx_dbi_open(self.txn, name, @intFromEnum(flags), &dbi);
+    pub fn openDBI(self: *Self, name: ?[*:0]const u8, flags_set: DBFlagSet) errors.MDBXError!DBI {
+        var dbi: DBI = undefined;
+        const c_flags = dbFlagsToInt(flags_set);
+        const rc = c.mdbx_dbi_open(self.txn, name, c_flags, &dbi);
         try errors.checkError(rc);
         return dbi;
     }
 
-    /// 从数据库获取数据
-    pub fn get(self: *Self, dbi: Env.DBI, key: []const u8) errors.MDBXError![]const u8 {
-        var key_val = c.MDBX_val{
-            .iov_base = @ptrCast(@constCast(key.ptr)),
-            .iov_len = key.len,
-        };
-        var data_val: c.MDBX_val = undefined;
+    /// 从数据库获取数据（使用 Val 类型）
+    ///
+    /// 警告：返回的 Val 引用 MDBX 内部管理的内存，
+    /// 其生命周期与事务相关联。事务结束后使用该 Val 将导致未定义行为。
+    ///
+    /// 参数：
+    ///   dbi - 数据库实例句柄
+    ///   key - 键的字节切片
+    ///
+    /// 返回：
+    ///   Val 实例，包含从数据库检索的值
+    pub fn get(self: *Self, dbi: DBI, key: []const u8) errors.MDBXError!Val {
+        var key_val = Val.fromBytes(key);
+        var data_val = Val.empty();
 
-        const rc = c.mdbx_get(self.txn, dbi, &key_val, &data_val);
+        const rc = c.mdbx_get(self.txn, dbi, key_val.asPtr(), data_val.asPtr());
         try errors.checkError(rc);
 
-        const data_ptr: [*]const u8 = @ptrCast(data_val.iov_base);
-        return data_ptr[0..data_val.iov_len];
+        return data_val;
+    }
+
+    /// 从数据库获取数据（便利方法，直接返回字节切片）
+    ///
+    /// 这是 get() 的便利包装，直接返回字节切片而不是 Val。
+    ///
+    /// 警告：返回的切片引用 MDBX 内部管理的内存，
+    /// 其生命周期与事务相关联。事务结束后使用该切片将导致未定义行为。
+    pub fn getBytes(self: *Self, dbi: DBI, key: []const u8) errors.MDBXError![]const u8 {
+        const val = try self.get(dbi, key);
+        return val.toBytes();
     }
 
     /// 存储数据到数据库
-    pub fn put(self: *Self, dbi: Env.DBI, key: []const u8, data: []const u8, flags: PutFlags) errors.MDBXError!void {
-        var key_val = c.MDBX_val{
-            .iov_base = @ptrCast(@constCast(key.ptr)),
-            .iov_len = key.len,
-        };
-        var data_val = c.MDBX_val{
-            .iov_base = @ptrCast(@constCast(data.ptr)),
-            .iov_len = data.len,
-        };
+    ///
+    /// 参数：
+    ///   dbi - 数据库实例句柄
+    ///   key - 键的字节切片
+    ///   data - 值的字节切片
+    ///   flags_set - Put 操作标志集合
+    pub fn put(self: *Self, dbi: DBI, key: []const u8, data: []const u8, flags_set: PutFlagSet) errors.MDBXError!void {
+        var key_val = Val.fromBytes(key);
+        var data_val = Val.fromBytes(data);
 
-        const rc = c.mdbx_put(self.txn, dbi, &key_val, &data_val, @intFromEnum(flags));
+        const c_flags = putFlagsToInt(flags_set);
+        const rc = c.mdbx_put(self.txn, dbi, key_val.asPtr(), data_val.asPtr(), c_flags);
         try errors.checkError(rc);
     }
 
     /// 从数据库删除数据
-    pub fn del(self: *Self, dbi: Env.DBI, key: []const u8, data: ?[]const u8) errors.MDBXError!void {
-        var key_val = c.MDBX_val{
-            .iov_base = @ptrCast(@constCast(key.ptr)),
-            .iov_len = key.len,
-        };
+    ///
+    /// 参数：
+    ///   dbi - 数据库实例句柄
+    ///   key - 键的字节切片
+    ///   data - 可选的值字节切片，用于精确匹配删除
+    pub fn del(self: *Self, dbi: DBI, key: []const u8, data: ?[]const u8) errors.MDBXError!void {
+        var key_val = Val.fromBytes(key);
 
         var data_ptr: ?*c.MDBX_val = null;
-        var data_val: c.MDBX_val = undefined;
+        var data_val: Val = undefined;
         if (data) |d| {
-            data_val = c.MDBX_val{
-                .iov_base = @ptrCast(@constCast(d.ptr)),
-                .iov_len = d.len,
-            };
-            data_ptr = &data_val;
+            data_val = Val.fromBytes(d);
+            data_ptr = data_val.asPtr();
         }
 
-        const rc = c.mdbx_del(self.txn, dbi, &key_val, data_ptr);
+        const rc = c.mdbx_del(self.txn, dbi, key_val.asPtr(), data_ptr);
         try errors.checkError(rc);
     }
 };
+
+// 向后兼容的便利函数
+/// 创建只读事务
+pub fn beginReadTxn(env: *c.MDBX_env) errors.MDBXError!Txn {
+    var tx_flags = TxFlagSet.init(.{});
+    tx_flags.insert(.read_only);
+    return Txn.init(env, null, tx_flags);
+}
+
+/// 创建读写事务
+pub fn beginWriteTxn(env: *c.MDBX_env) errors.MDBXError!Txn {
+    return Txn.init(env, null, TxFlagSet.init(.{}));
+}

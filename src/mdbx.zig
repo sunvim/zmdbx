@@ -8,13 +8,13 @@
 //   var env = try zmdbx.Env.init();
 //   defer env.deinit();
 //
-//   try env.open("/path/to/db", .defaults, 0o644);
+//   try env.open("/path/to/db", zmdbx.EnvFlagSet.init(.{}), 0o644);
 //
-//   var txn = try env.beginTxn(null, .read_write);
+//   var txn = try env.beginWriteTxn();
 //   defer txn.abort();
 //
-//   const dbi = try txn.openDBI(null, .create);
-//   try txn.put(dbi, "key", "value", .upsert);
+//   const dbi = try txn.openDBI(null, zmdbx.DBFlagSet.init(.{ .create = true }));
+//   try txn.put(dbi, "key", "value", zmdbx.PutFlagSet.init(.{}));
 //   try txn.commit();
 
 const std = @import("std");
@@ -26,22 +26,49 @@ pub const Cursor = @import("cursor.zig").Cursor;
 pub const errors = @import("errors.zig");
 pub const opt = @import("opt.zig");
 
-// 类型导出
-pub const DBI = @import("env.zig").DBI;
-pub const Geometry = @import("env.zig").Geometry;
+// 新模块导出
+pub const types = @import("types.zig");
+pub const flags = @import("flags.zig");
 
-// 标志类型
-pub const EnvFlags = @import("env.zig").EnvFlags;
-pub const DBFlags = @import("env.zig").DBFlags;
-pub const CopyFlags = @import("env.zig").CopyFlags;
-pub const DBIState = @import("env.zig").DBIState;
-pub const DeleteMode = @import("env.zig").DeleteMode;
+// 类型导出（从 types.zig）
+pub const DBI = types.DBI;
+pub const Geometry = types.Geometry;
+pub const TxInfo = types.TxInfo;
+pub const Val = types.Val;
 
-pub const TxFlags = @import("txn.zig").TxFlags;
-pub const PutFlags = @import("txn.zig").PutFlags;
-pub const TxInfo = @import("txn.zig").TxInfo;
+// 环境标志（从 flags.zig）
+pub const EnvFlag = flags.EnvFlag;
+pub const EnvFlagSet = flags.EnvFlagSet;
+pub const envFlagsToInt = flags.envFlagsToInt;
 
-pub const CursorOp = @import("cursor.zig").CursorOp;
+// 数据库标志（从 flags.zig）
+pub const DBFlag = flags.DBFlag;
+pub const DBFlagSet = flags.DBFlagSet;
+pub const dbFlagsToInt = flags.dbFlagsToInt;
+
+// 复制标志（从 flags.zig）
+pub const CopyFlag = flags.CopyFlag;
+pub const CopyFlagSet = flags.CopyFlagSet;
+pub const copyFlagsToInt = flags.copyFlagsToInt;
+
+// DBI 状态（从 flags.zig）
+pub const DBIState = flags.DBIState;
+
+// 删除模式（从 flags.zig）
+pub const DeleteMode = flags.DeleteMode;
+
+// 事务标志（从 flags.zig）
+pub const TxFlag = flags.TxFlag;
+pub const TxFlagSet = flags.TxFlagSet;
+pub const txFlagsToInt = flags.txFlagsToInt;
+
+// Put 操作标志（从 flags.zig）
+pub const PutFlag = flags.PutFlag;
+pub const PutFlagSet = flags.PutFlagSet;
+pub const putFlagsToInt = flags.putFlagsToInt;
+
+// 游标操作（从 flags.zig）
+pub const CursorOp = flags.CursorOp;
 
 // 选项
 pub const Option = opt.Option;
@@ -59,4 +86,34 @@ test "basic functionality" {
 
     // 测试通过
     try testing.expect(env.env != null);
+}
+
+test "Val type" {
+    const testing = std.testing;
+
+    const data = "Hello, MDBX!";
+    const val = Val.fromBytes(data);
+
+    const result = val.toBytes();
+    try testing.expectEqualStrings(data, result);
+}
+
+test "Flag sets" {
+    const testing = std.testing;
+
+    // 测试环境标志组合
+    var env_flags = EnvFlagSet.init(.{});
+    env_flags.insert(.validation);
+    env_flags.insert(.no_sub_dir);
+
+    const c_flags = envFlagsToInt(env_flags);
+    try testing.expect(c_flags != 0);
+
+    // 测试数据库标志组合
+    var db_flags = DBFlagSet.init(.{});
+    db_flags.insert(.create);
+    db_flags.insert(.dup_sort);
+
+    const c_db_flags = dbFlagsToInt(db_flags);
+    try testing.expect(c_db_flags != 0);
 }

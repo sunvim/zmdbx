@@ -195,6 +195,242 @@ pub const Val = struct {
         @memcpy(copy, bytes);
         return copy;
     }
+
+
+    // ==================== 类型化构造方法 ====================
+    // 以下方法提供类型安全的数据构造，自动处理字节转换
+
+    /// 从i8创建Val
+    ///
+    /// 注意：使用原生字节序，跨架构场景需要注意兼容性。
+    ///
+    /// 参数：
+    ///   value - i8类型的值
+    ///
+    /// 返回：
+    ///   Val实例，包含该值的字节表示
+    pub inline fn from_i8(value: i8) Self {
+        const bytes = std.mem.asBytes(&value);
+        return fromBytes(bytes);
+    }
+
+    /// 从i16创建Val
+    ///
+    /// 注意：使用原生字节序，跨架构场景需要注意兼容性。
+    pub inline fn from_i16(value: i16) Self {
+        const bytes = std.mem.asBytes(&value);
+        return fromBytes(bytes);
+    }
+
+    /// 从i32创建Val
+    ///
+    /// 注意：使用原生字节序，跨架构场景需要注意兼容性。
+    pub inline fn from_i32(value: i32) Self {
+        const bytes = std.mem.asBytes(&value);
+        return fromBytes(bytes);
+    }
+
+    /// 从i64创建Val
+    ///
+    /// 注意：使用原生字节序，跨架构场景需要注意兼容性。
+    pub inline fn from_i64(value: i64) Self {
+        const bytes = std.mem.asBytes(&value);
+        return fromBytes(bytes);
+    }
+
+    /// 从i128创建Val
+    ///
+    /// 注意：使用原生字节序，跨架构场景需要注意兼容性。
+    pub inline fn from_i128(value: i128) Self {
+        const bytes = std.mem.asBytes(&value);
+        return fromBytes(bytes);
+    }
+
+    /// 从u8创建Val
+    ///
+    /// 注意：使用原生字节序，跨架构场景需要注意兼容性。
+    pub inline fn from_u8(value: u8) Self {
+        const bytes = std.mem.asBytes(&value);
+        return fromBytes(bytes);
+    }
+
+    /// 从u16创建Val
+    ///
+    /// 注意：使用原生字节序，跨架构场景需要注意兼容性。
+    pub inline fn from_u16(value: u16) Self {
+        const bytes = std.mem.asBytes(&value);
+        return fromBytes(bytes);
+    }
+
+    /// 从u32创建Val
+    ///
+    /// 注意：使用原生字节序，跨架构场景需要注意兼容性。
+    pub inline fn from_u32(value: u32) Self {
+        const bytes = std.mem.asBytes(&value);
+        return fromBytes(bytes);
+    }
+
+    /// 从u64创建Val
+    ///
+    /// 注意：使用原生字节序，跨架构场景需要注意兼容性。
+    pub inline fn from_u64(value: u64) Self {
+        const bytes = std.mem.asBytes(&value);
+        return fromBytes(bytes);
+    }
+
+    /// 从u128创建Val
+    ///
+    /// 注意：使用原生字节序，跨架构场景需要注意兼容性。
+    pub inline fn from_u128(value: u128) Self {
+        const bytes = std.mem.asBytes(&value);
+        return fromBytes(bytes);
+    }
+
+    // ==================== 类型化转换方法 ====================
+    // 以下方法提供类型安全的数据读取，自动验证长度并转换类型
+
+    /// 转换为i8
+    ///
+    /// 验证数据长度是否匹配i8类型，然后转换。
+    ///
+    /// 返回：
+    ///   i8类型的值
+    ///
+    /// 错误：
+    ///   InvalidDataLength - 数据长度与i8不匹配
+    pub inline fn to_i8(self: Self) !i8 {
+        const bytes = self.toBytes();
+        if (bytes.len != @sizeOf(i8)) {
+            return error.InvalidDataLength;
+        }
+        return std.mem.bytesToValue(i8, bytes[0..@sizeOf(i8)]);
+    }
+
+    /// 转换为i16
+    ///
+    /// 验证数据长度是否匹配i16类型，然后转换。
+    ///
+    /// 错误：
+    ///   InvalidDataLength - 数据长度与i16不匹配
+    pub inline fn to_i16(self: Self) !i16 {
+        const bytes = self.toBytes();
+        if (bytes.len != @sizeOf(i16)) {
+            return error.InvalidDataLength;
+        }
+        return std.mem.bytesToValue(i16, bytes[0..@sizeOf(i16)]);
+    }
+
+    /// 转换为i32
+    ///
+    /// 验证数据长度是否匹配i32类型，然后转换。
+    ///
+    /// 错误：
+    ///   InvalidDataLength - 数据长度与i32不匹配
+    pub inline fn to_i32(self: Self) !i32 {
+        const bytes = self.toBytes();
+        if (bytes.len != @sizeOf(i32)) {
+            return error.InvalidDataLength;
+        }
+        return std.mem.bytesToValue(i32, bytes[0..@sizeOf(i32)]);
+    }
+
+    /// 转换为i64
+    ///
+    /// 验证数据长度是否匹配i64类型，然后转换。
+    ///
+    /// 错误：
+    ///   InvalidDataLength - 数据长度与i64不匹配
+    pub inline fn to_i64(self: Self) !i64 {
+        const bytes = self.toBytes();
+        if (bytes.len != @sizeOf(i64)) {
+            return error.InvalidDataLength;
+        }
+        return std.mem.bytesToValue(i64, bytes[0..@sizeOf(i64)]);
+    }
+
+    /// 转换为i128
+    ///
+    /// 验证数据长度是否匹配i128类型，然后转换。
+    ///
+    /// 错误：
+    ///   InvalidDataLength - 数据长度与i128不匹配
+    pub inline fn to_i128(self: Self) !i128 {
+        const bytes = self.toBytes();
+        if (bytes.len != @sizeOf(i128)) {
+            return error.InvalidDataLength;
+        }
+        return std.mem.bytesToValue(i128, bytes[0..@sizeOf(i128)]);
+    }
+
+    /// 转换为u8
+    ///
+    /// 验证数据长度是否匹配u8类型，然后转换。
+    ///
+    /// 错误：
+    ///   InvalidDataLength - 数据长度与u8不匹配
+    pub inline fn to_u8(self: Self) !u8 {
+        const bytes = self.toBytes();
+        if (bytes.len != @sizeOf(u8)) {
+            return error.InvalidDataLength;
+        }
+        return std.mem.bytesToValue(u8, bytes[0..@sizeOf(u8)]);
+    }
+
+    /// 转换为u16
+    ///
+    /// 验证数据长度是否匹配u16类型，然后转换。
+    ///
+    /// 错误：
+    ///   InvalidDataLength - 数据长度与u16不匹配
+    pub inline fn to_u16(self: Self) !u16 {
+        const bytes = self.toBytes();
+        if (bytes.len != @sizeOf(u16)) {
+            return error.InvalidDataLength;
+        }
+        return std.mem.bytesToValue(u16, bytes[0..@sizeOf(u16)]);
+    }
+
+    /// 转换为u32
+    ///
+    /// 验证数据长度是否匹配u32类型，然后转换。
+    ///
+    /// 错误：
+    ///   InvalidDataLength - 数据长度与u32不匹配
+    pub inline fn to_u32(self: Self) !u32 {
+        const bytes = self.toBytes();
+        if (bytes.len != @sizeOf(u32)) {
+            return error.InvalidDataLength;
+        }
+        return std.mem.bytesToValue(u32, bytes[0..@sizeOf(u32)]);
+    }
+
+    /// 转换为u64
+    ///
+    /// 验证数据长度是否匹配u64类型，然后转换。
+    ///
+    /// 错误：
+    ///   InvalidDataLength - 数据长度与u64不匹配
+    pub inline fn to_u64(self: Self) !u64 {
+        const bytes = self.toBytes();
+        if (bytes.len != @sizeOf(u64)) {
+            return error.InvalidDataLength;
+        }
+        return std.mem.bytesToValue(u64, bytes[0..@sizeOf(u64)]);
+    }
+
+    /// 转换为u128
+    ///
+    /// 验证数据长度是否匹配u128类型，然后转换。
+    ///
+    /// 错误：
+    ///   InvalidDataLength - 数据长度与u128不匹配
+    pub inline fn to_u128(self: Self) !u128 {
+        const bytes = self.toBytes();
+        if (bytes.len != @sizeOf(u128)) {
+            return error.InvalidDataLength;
+        }
+        return std.mem.bytesToValue(u128, bytes[0..@sizeOf(u128)]);
+    }
 };
 
 // 编译期测试确保类型兼容性

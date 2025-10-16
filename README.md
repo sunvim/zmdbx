@@ -209,6 +209,51 @@ const value = try db.get("key");
 try db.delete("key");
 ```
 
+#### Val (类型化数据) ⭐ 新功能
+
+Val 提供类型安全的数值类型转换，让您可以直接存储和读取整数类型，无需手动序列化：
+
+```zig
+// ===== 改进前：繁琐的手动转换 =====
+const age: u32 = 25;
+const age_bytes = std.mem.asBytes(&age);
+try txn.put(dbi, "age", age_bytes, put_flags);
+
+const val = try txn.get(dbi, "age");
+const bytes = val.toBytes();
+const age_read = std.mem.bytesToValue(u32, bytes[0..@sizeOf(u32)]);
+
+// ===== 改进后：简洁的类型化API =====
+const age: u32 = 25;
+const age_val = zmdbx.Val.from_u32(age);
+try txn.put(dbi, "age", age_val.toBytes(), put_flags);
+
+const val = try txn.get(dbi, "age");
+const age_read = try val.to_u32();  // 自动验证长度！
+```
+
+**支持的类型**：
+- 有符号整数：`i8`, `i16`, `i32`, `i64`, `i128`
+- 无符号整数：`u8`, `u16`, `u32`, `u64`, `u128`
+
+**实际使用示例**：
+
+```zig
+// 游戏玩家数据
+try txn.put(dbi, "player:score", zmdbx.Val.from_i32(1500).toBytes(), put_flags);
+try txn.put(dbi, "player:level", zmdbx.Val.from_u8(25).toBytes(), put_flags);
+try txn.put(dbi, "player:gold", zmdbx.Val.from_u64(999999).toBytes(), put_flags);
+
+// 读取
+const score = try (try txn.get(dbi, "player:score")).to_i32();
+const level = try (try txn.get(dbi, "player:level")).to_u8();
+const gold = try (try txn.get(dbi, "player:gold")).to_u64();
+
+std.debug.print("分数: {}, 等级: {}, 金币: {}\n", .{score, level, gold});
+```
+
+⚠️ **注意**：所有类型化方法使用原生字节序，跨架构场景需要注意兼容性。
+
 ### API 参考
 
 #### Env (环境)

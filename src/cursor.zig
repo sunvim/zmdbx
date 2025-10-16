@@ -164,4 +164,253 @@ pub const Cursor = struct {
         if (rc == c.MDBX_RESULT_FALSE) return false;
         return errors.toError(rc);
     }
+
+    // ==================== 类型化便捷方法 ====================
+    // 以下方法提供类型安全的游标操作，自动处理类型转换
+
+    // ---------- 有符号整数类型 ----------
+
+    /// 使用游标获取i8类型的数据
+    pub inline fn get_i8(self: *Self, key: ?[]const u8, data: ?[]const u8, op: CursorOp) errors.MDBXError!struct { key: []const u8, data: i8 } {
+        const result = try self.get(key, data, op);
+        return .{
+            .key = result.key.toBytes(),
+            .data = try result.data.to_i8(),
+        };
+    }
+
+    /// 使用游标存储i8类型的数据
+    pub inline fn put_i8(self: *Self, key: []const u8, value: i8, flags_set: PutFlagSet) errors.MDBXError!void {
+        const val = Val.from_i8(value);
+        return self.put(key, val.toBytes(), flags_set);
+    }
+
+    /// 使用游标获取i16类型的数据
+    pub inline fn get_i16(self: *Self, key: ?[]const u8, data: ?[]const u8, op: CursorOp) errors.MDBXError!struct { key: []const u8, data: i16 } {
+        const result = try self.get(key, data, op);
+        return .{
+            .key = result.key.toBytes(),
+            .data = try result.data.to_i16(),
+        };
+    }
+
+    /// 使用游标存储i16类型的数据
+    pub inline fn put_i16(self: *Self, key: []const u8, value: i16, flags_set: PutFlagSet) errors.MDBXError!void {
+        const val = Val.from_i16(value);
+        return self.put(key, val.toBytes(), flags_set);
+    }
+
+    /// 使用游标获取i32类型的数据
+    pub inline fn get_i32(self: *Self, key: ?[]const u8, data: ?[]const u8, op: CursorOp) errors.MDBXError!struct { key: []const u8, data: i32 } {
+        const result = try self.get(key, data, op);
+        return .{
+            .key = result.key.toBytes(),
+            .data = try result.data.to_i32(),
+        };
+    }
+
+    /// 使用游标存储i32类型的数据
+    pub inline fn put_i32(self: *Self, key: []const u8, value: i32, flags_set: PutFlagSet) errors.MDBXError!void {
+        const val = Val.from_i32(value);
+        return self.put(key, val.toBytes(), flags_set);
+    }
+
+    /// 使用游标获取i64类型的数据
+    pub inline fn get_i64(self: *Self, key: ?[]const u8, data: ?[]const u8, op: CursorOp) errors.MDBXError!struct { key: []const u8, data: i64 } {
+        const result = try self.get(key, data, op);
+        return .{
+            .key = result.key.toBytes(),
+            .data = try result.data.to_i64(),
+        };
+    }
+
+    /// 使用游标存储i64类型的数据
+    pub inline fn put_i64(self: *Self, key: []const u8, value: i64, flags_set: PutFlagSet) errors.MDBXError!void {
+        const val = Val.from_i64(value);
+        return self.put(key, val.toBytes(), flags_set);
+    }
+
+    /// 使用游标获取i128类型的数据
+    pub inline fn get_i128(self: *Self, key: ?[]const u8, data: ?[]const u8, op: CursorOp) errors.MDBXError!struct { key: []const u8, data: i128 } {
+        const result = try self.get(key, data, op);
+        return .{
+            .key = result.key.toBytes(),
+            .data = try result.data.to_i128(),
+        };
+    }
+
+    /// 使用游标存储i128类型的数据
+    pub inline fn put_i128(self: *Self, key: []const u8, value: i128, flags_set: PutFlagSet) errors.MDBXError!void {
+        const val = Val.from_i128(value);
+        return self.put(key, val.toBytes(), flags_set);
+    }
+
+    // ---------- 无符号整数类型 ----------
+
+    /// 使用游标获取u8类型的数据
+    pub inline fn get_u8(self: *Self, key: ?[]const u8, data: ?[]const u8, op: CursorOp) errors.MDBXError!struct { key: []const u8, data: u8 } {
+        const result = try self.get(key, data, op);
+        return .{
+            .key = result.key.toBytes(),
+            .data = try result.data.to_u8(),
+        };
+    }
+
+    /// 使用游标存储u8类型的数据
+    pub inline fn put_u8(self: *Self, key: []const u8, value: u8, flags_set: PutFlagSet) errors.MDBXError!void {
+        const val = Val.from_u8(value);
+        return self.put(key, val.toBytes(), flags_set);
+    }
+
+    /// 使用游标获取u16类型的数据
+    pub inline fn get_u16(self: *Self, key: ?[]const u8, data: ?[]const u8, op: CursorOp) errors.MDBXError!struct { key: []const u8, data: u16 } {
+        const result = try self.get(key, data, op);
+        return .{
+            .key = result.key.toBytes(),
+            .data = try result.data.to_u16(),
+        };
+    }
+
+    /// 使用游标存储u16类型的数据
+    pub inline fn put_u16(self: *Self, key: []const u8, value: u16, flags_set: PutFlagSet) errors.MDBXError!void {
+        const val = Val.from_u16(value);
+        return self.put(key, val.toBytes(), flags_set);
+    }
+
+    /// 使用游标获取u32类型的数据
+    pub inline fn get_u32(self: *Self, key: ?[]const u8, data: ?[]const u8, op: CursorOp) errors.MDBXError!struct { key: []const u8, data: u32 } {
+        const result = try self.get(key, data, op);
+        return .{
+            .key = result.key.toBytes(),
+            .data = try result.data.to_u32(),
+        };
+    }
+
+    /// 使用游标存储u32类型的数据
+    pub inline fn put_u32(self: *Self, key: []const u8, value: u32, flags_set: PutFlagSet) errors.MDBXError!void {
+        const val = Val.from_u32(value);
+        return self.put(key, val.toBytes(), flags_set);
+    }
+
+    /// 使用游标获取u64类型的数据
+    pub inline fn get_u64(self: *Self, key: ?[]const u8, data: ?[]const u8, op: CursorOp) errors.MDBXError!struct { key: []const u8, data: u64 } {
+        const result = try self.get(key, data, op);
+        return .{
+            .key = result.key.toBytes(),
+            .data = try result.data.to_u64(),
+        };
+    }
+
+    /// 使用游标存储u64类型的数据
+    pub inline fn put_u64(self: *Self, key: []const u8, value: u64, flags_set: PutFlagSet) errors.MDBXError!void {
+        const val = Val.from_u64(value);
+        return self.put(key, val.toBytes(), flags_set);
+    }
+
+    /// 使用游标获取u128类型的数据
+    pub inline fn get_u128(self: *Self, key: ?[]const u8, data: ?[]const u8, op: CursorOp) errors.MDBXError!struct { key: []const u8, data: u128 } {
+        const result = try self.get(key, data, op);
+        return .{
+            .key = result.key.toBytes(),
+            .data = try result.data.to_u128(),
+        };
+    }
+
+    /// 使用游标存储u128类型的数据
+    pub inline fn put_u128(self: *Self, key: []const u8, value: u128, flags_set: PutFlagSet) errors.MDBXError!void {
+        const val = Val.from_u128(value);
+        return self.put(key, val.toBytes(), flags_set);
+    }
+
+    // ---------- 浮点数类型 ----------
+
+    /// 使用游标获取f16类型的数据
+    pub inline fn get_f16(self: *Self, key: ?[]const u8, data: ?[]const u8, op: CursorOp) errors.MDBXError!struct { key: []const u8, data: f16 } {
+        const result = try self.get(key, data, op);
+        return .{
+            .key = result.key.toBytes(),
+            .data = try result.data.to_f16(),
+        };
+    }
+
+    /// 使用游标存储f16类型的数据
+    pub inline fn put_f16(self: *Self, key: []const u8, value: f16, flags_set: PutFlagSet) errors.MDBXError!void {
+        const val = Val.from_f16(value);
+        return self.put(key, val.toBytes(), flags_set);
+    }
+
+    /// 使用游标获取f32类型的数据
+    pub inline fn get_f32(self: *Self, key: ?[]const u8, data: ?[]const u8, op: CursorOp) errors.MDBXError!struct { key: []const u8, data: f32 } {
+        const result = try self.get(key, data, op);
+        return .{
+            .key = result.key.toBytes(),
+            .data = try result.data.to_f32(),
+        };
+    }
+
+    /// 使用游标存储f32类型的数据
+    pub inline fn put_f32(self: *Self, key: []const u8, value: f32, flags_set: PutFlagSet) errors.MDBXError!void {
+        const val = Val.from_f32(value);
+        return self.put(key, val.toBytes(), flags_set);
+    }
+
+    /// 使用游标获取f64类型的数据
+    pub inline fn get_f64(self: *Self, key: ?[]const u8, data: ?[]const u8, op: CursorOp) errors.MDBXError!struct { key: []const u8, data: f64 } {
+        const result = try self.get(key, data, op);
+        return .{
+            .key = result.key.toBytes(),
+            .data = try result.data.to_f64(),
+        };
+    }
+
+    /// 使用游标存储f64类型的数据
+    pub inline fn put_f64(self: *Self, key: []const u8, value: f64, flags_set: PutFlagSet) errors.MDBXError!void {
+        const val = Val.from_f64(value);
+        return self.put(key, val.toBytes(), flags_set);
+    }
+
+    /// 使用游标获取f80类型的数据
+    pub inline fn get_f80(self: *Self, key: ?[]const u8, data: ?[]const u8, op: CursorOp) errors.MDBXError!struct { key: []const u8, data: f80 } {
+        const result = try self.get(key, data, op);
+        return .{
+            .key = result.key.toBytes(),
+            .data = try result.data.to_f80(),
+        };
+    }
+
+    /// 使用游标存储f80类型的数据
+    pub inline fn put_f80(self: *Self, key: []const u8, value: f80, flags_set: PutFlagSet) errors.MDBXError!void {
+        const val = Val.from_f80(value);
+        return self.put(key, val.toBytes(), flags_set);
+    }
+
+    /// 使用游标获取f128类型的数据
+    pub inline fn get_f128(self: *Self, key: ?[]const u8, data: ?[]const u8, op: CursorOp) errors.MDBXError!struct { key: []const u8, data: f128 } {
+        const result = try self.get(key, data, op);
+        return .{
+            .key = result.key.toBytes(),
+            .data = try result.data.to_f128(),
+        };
+    }
+
+    /// 使用游标存储f128类型的数据
+    pub inline fn put_f128(self: *Self, key: []const u8, value: f128, flags_set: PutFlagSet) errors.MDBXError!void {
+        const val = Val.from_f128(value);
+        return self.put(key, val.toBytes(), flags_set);
+    }
+
+    /// 使用游标获取c_longdouble类型的数据
+    pub inline fn get_c_longdouble(self: *Self, key: ?[]const u8, data: ?[]const u8, op: CursorOp) errors.MDBXError!struct { key: []const u8, data: c_longdouble } {
+        const result = try self.get(key, data, op);
+        return .{
+            .key = result.key.toBytes(),
+            .data = try result.data.to_c_longdouble(),
+        };
+    }
+
+    /// 使用游标存储c_longdouble类型的数据
+    pub inline fn put_c_longdouble(self: *Self, key: []const u8, value: c_longdouble, flags_set: PutFlagSet) errors.MDBXError!void {
+        const val = Val.from_c_longdouble(value);
+        return self.put(key, val.toBytes(), flags_set);
+    }
 };

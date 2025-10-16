@@ -431,6 +431,196 @@ pub const Val = struct {
         }
         return std.mem.bytesToValue(u128, bytes[0..@sizeOf(u128)]);
     }
+
+
+    // ==================== 浮点数类型支持 ====================
+
+    /// 从f32创建Val
+    ///
+    /// 注意：使用原生字节序，跨架构场景需要注意兼容性。
+    ///
+    /// 参数：
+    ///   value - f32类型的值
+    ///
+    /// 返回：
+    ///   Val实例，包含该值的字节表示
+    pub inline fn from_f32(value: f32) Self {
+        const bytes = std.mem.asBytes(&value);
+        return fromBytes(bytes);
+    }
+
+    /// 从f64创建Val
+    ///
+    /// 注意：使用原生字节序，跨架构场景需要注意兼容性。
+    ///
+    /// 参数：
+    ///   value - f64类型的值
+    ///
+    /// 返回：
+    ///   Val实例，包含该值的字节表示
+    pub inline fn from_f64(value: f64) Self {
+        const bytes = std.mem.asBytes(&value);
+        return fromBytes(bytes);
+    }
+
+    /// 转换为f32
+    ///
+    /// 验证数据长度是否匹配f32类型，然后转换。
+    ///
+    /// 返回：
+    ///   f32类型的值
+    ///
+    /// 错误：
+    ///   InvalidDataLength - 数据长度与f32不匹配
+    pub inline fn to_f32(self: Self) !f32 {
+        const bytes = self.toBytes();
+        if (bytes.len != @sizeOf(f32)) {
+            return error.InvalidDataLength;
+        }
+        return std.mem.bytesToValue(f32, bytes[0..@sizeOf(f32)]);
+    }
+
+    /// 转换为f64
+    ///
+    /// 验证数据长度是否匹配f64类型，然后转换。
+    ///
+    /// 返回：
+    ///   f64类型的值
+    ///
+    /// 错误：
+    ///   InvalidDataLength - 数据长度与f64不匹配
+    pub inline fn to_f64(self: Self) !f64 {
+        const bytes = self.toBytes();
+        if (bytes.len != @sizeOf(f64)) {
+            return error.InvalidDataLength;
+        }
+        return std.mem.bytesToValue(f64, bytes[0..@sizeOf(f64)]);
+    }
+
+    /// 从f16创建Val
+    ///
+    /// 注意：使用原生字节序，跨架构场景需要注意兼容性。
+    ///
+    /// 参数：
+    ///   value - f16类型的值
+    ///
+    /// 返回：
+    ///   Val实例，包含该值的字节表示
+    pub inline fn from_f16(value: f16) Self {
+        const bytes = std.mem.asBytes(&value);
+        return fromBytes(bytes);
+    }
+
+    /// 转换为f16
+    ///
+    /// 验证数据长度是否匹配f16类型，然后转换。
+    ///
+    /// 返回：
+    ///   f16类型的值
+    ///
+    /// 错误：
+    ///   InvalidDataLength - 数据长度与f16不匹配
+    pub inline fn to_f16(self: Self) !f16 {
+        const bytes = self.toBytes();
+        if (bytes.len != @sizeOf(f16)) {
+            return error.InvalidDataLength;
+        }
+        return std.mem.bytesToValue(f16, bytes[0..@sizeOf(f16)]);
+    }
+
+    /// 从f80创建Val
+    ///
+    /// 注意：f80是x86扩展精度浮点数，使用原生字节序，跨架构场景需要注意兼容性。
+    ///
+    /// 参数：
+    ///   value - f80类型的值
+    ///
+    /// 返回：
+    ///   Val实例，包含该值的字节表示
+    pub inline fn from_f80(value: f80) Self {
+        const bytes = std.mem.asBytes(&value);
+        return fromBytes(bytes);
+    }
+
+    /// 转换为f80
+    ///
+    /// 验证数据长度是否匹配f80类型，然后转换。
+    ///
+    /// 返回：
+    ///   f80类型的值
+    ///
+    /// 错误：
+    ///   InvalidDataLength - 数据长度与f80不匹配
+    pub inline fn to_f80(self: Self) !f80 {
+        const bytes = self.toBytes();
+        if (bytes.len != @sizeOf(f80)) {
+            return error.InvalidDataLength;
+        }
+        return std.mem.bytesToValue(f80, bytes[0..@sizeOf(f80)]);
+    }
+
+    /// 从f128创建Val
+    ///
+    /// 注意：使用原生字节序，跨架构场景需要注意兼容性。
+    ///
+    /// 参数：
+    ///   value - f128类型的值
+    ///
+    /// 返回：
+    ///   Val实例，包含该值的字节表示
+    pub inline fn from_f128(value: f128) Self {
+        const bytes = std.mem.asBytes(&value);
+        return fromBytes(bytes);
+    }
+
+    /// 转换为f128
+    ///
+    /// 验证数据长度是否匹配f128类型，然后转换。
+    ///
+    /// 返回：
+    ///   f128类型的值
+    ///
+    /// 错误：
+    ///   InvalidDataLength - 数据长度与f128不匹配
+    pub inline fn to_f128(self: Self) !f128 {
+        const bytes = self.toBytes();
+        if (bytes.len != @sizeOf(f128)) {
+            return error.InvalidDataLength;
+        }
+        return std.mem.bytesToValue(f128, bytes[0..@sizeOf(f128)]);
+    }
+
+    /// 从c_longdouble创建Val
+    ///
+    /// 注意：c_longdouble的大小和表示形式依赖于平台和C编译器，
+    /// 使用原生字节序，跨平台场景需要格外注意兼容性。
+    ///
+    /// 参数：
+    ///   value - c_longdouble类型的值
+    ///
+    /// 返回：
+    ///   Val实例，包含该值的字节表示
+    pub inline fn from_c_longdouble(value: c_longdouble) Self {
+        const bytes = std.mem.asBytes(&value);
+        return fromBytes(bytes);
+    }
+
+    /// 转换为c_longdouble
+    ///
+    /// 验证数据长度是否匹配c_longdouble类型，然后转换。
+    ///
+    /// 返回：
+    ///   c_longdouble类型的值
+    ///
+    /// 错误：
+    ///   InvalidDataLength - 数据长度与c_longdouble不匹配
+    pub inline fn to_c_longdouble(self: Self) !c_longdouble {
+        const bytes = self.toBytes();
+        if (bytes.len != @sizeOf(c_longdouble)) {
+            return error.InvalidDataLength;
+        }
+        return std.mem.bytesToValue(c_longdouble, bytes[0..@sizeOf(c_longdouble)]);
+    }
 };
 
 // 编译期测试确保类型兼容性

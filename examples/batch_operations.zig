@@ -3,13 +3,22 @@
 
 const std = @import("std");
 const zmdbx = @import("zmdbx");
+const util = @import("util.zig");
+
+/// 示例用的数据库路径。跑完就删，不在工作目录里留数据。
+const db_path = "./testdb_batch";
 
 pub fn main() !void {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    // Zig 0.16: std.heap.GeneralPurposeAllocator 已改名 DebugAllocator
+    var gpa = std.heap.DebugAllocator(.{}){};
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
     std.debug.print("=== MDBX 批量操作示例 ===\n\n", .{});
+
+    // 从干净状态开始；结束时删除（包括出错提前返回的情况）
+    util.deleteTree(db_path);
+    defer util.deleteTree(db_path);
 
     // 创建并打开环境
     var env = try zmdbx.Env.init();
@@ -24,13 +33,13 @@ pub fn main() !void {
         .pagesize = -1,
     });
 
-    try env.open("./testdb_batch", zmdbx.EnvFlagSet.init(.{}), 0o644);
+    try env.open(db_path, zmdbx.EnvFlagSet.init(.{}), 0o644);
 
     const batch_size = 10000;
 
     // 批量插入
     std.debug.print("1. 批量插入 {d} 条记录...\n", .{batch_size});
-    const start_insert = std.time.milliTimestamp();
+    const start_insert = util.millis();
 
     {
         var txn = try env.beginWriteTxn();
@@ -58,13 +67,13 @@ pub fn main() !void {
         try txn.commit();
     }
 
-    const insert_time = std.time.milliTimestamp() - start_insert;
+    const insert_time = util.millis() - start_insert;
     std.debug.print("\n   插入完成！耗时: {d}ms\n", .{insert_time});
     std.debug.print("   吞吐量: {d} ops/s\n\n", .{@divTrunc(batch_size * 1000, @as(usize, @intCast(insert_time)))});
 
     // 批量读取
     std.debug.print("2. 批量读取验证...\n", .{});
-    const start_read = std.time.milliTimestamp();
+    const start_read = util.millis();
 
     {
         var txn = try env.beginReadTxn();
@@ -85,14 +94,14 @@ pub fn main() !void {
         }
     }
 
-    const read_time = std.time.milliTimestamp() - start_read;
+    const read_time = util.millis() - start_read;
     std.debug.print("\n   读取完成！耗时: {d}ms\n", .{read_time});
     std.debug.print("   吞吐量: {d} ops/s\n\n", .{@divTrunc(batch_size * 1000, @as(usize, @intCast(read_time)))});
 
     // 批量删除
     std.debug.print("3. 批量删除一半记录...\n", .{});
     const delete_count = batch_size / 2;
-    const start_delete = std.time.milliTimestamp();
+    const start_delete = util.millis();
 
     {
         var txn = try env.beginWriteTxn();
@@ -115,9 +124,10 @@ pub fn main() !void {
         try txn.commit();
     }
 
-    const delete_time = std.time.milliTimestamp() - start_delete;
+    const delete_time = util.millis() - start_delete;
     std.debug.print("\n   删除完成！耗时: {d}ms\n", .{delete_time});
     std.debug.print("   吞吐量: {d} ops/s\n", .{@divTrunc(delete_count * 1000, @as(usize, @intCast(delete_time)))});
 
     std.debug.print("\n✓ 批量操作示例完成！\n", .{});
+    std.debug.print("  （示例数据库已删除，工作目录保持干净）\n", .{});
 }

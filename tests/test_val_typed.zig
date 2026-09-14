@@ -4,6 +4,7 @@
 const std = @import("std");
 const testing = std.testing;
 const zmdbx = @import("zmdbx");
+const util = @import("util.zig");
 const Val = zmdbx.Val;
 
 // ==================== 有符号整数测试 ====================
@@ -187,9 +188,8 @@ test "Val.to_u32 with mismatched type - error" {
     const value: i32 = -1;
     const val = Val.from_i32(value);
     const result = try val.to_u32(); // 不会报错，因为长度匹配
-    // 但值会不同（-1 as i32 会被解释为一个很大的u32）
-    try testing.expect(result != @as(u32, @bitCast(value)));
-    // 实际上它们的位模式相同
+    // 位模式相同，因此 i32 的 -1 按 u32 解释就是 4294967295
+    try testing.expectEqual(@as(u32, 4294967295), result);
     try testing.expectEqual(@as(u32, @bitCast(value)), result);
 }
 
@@ -362,8 +362,8 @@ test "Val.to_f32 with wrong length - error" {
 
 test "Val typed API - practical usage with floats" {
     // 模拟实际使用场景：存储物理量
-    const temperature: f32 = 36.5;  // 体温
-    const pi: f64 = 3.141592653589793;  // 圆周率
+    const temperature: f32 = 36.5; // 体温
+    const pi: f64 = 3.141592653589793; // 圆周率
 
     // 创建Val
     const temp_val = Val.from_f32(temperature);

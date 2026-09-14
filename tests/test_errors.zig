@@ -1,20 +1,22 @@
 const std = @import("std");
 const testing = std.testing;
 const zmdbx = @import("zmdbx");
+const util = @import("util.zig");
 
 // 测试辅助函数：创建临时测试目录
-fn createTestDir(name: []const u8) ![]const u8 {
+fn createTestDir(name: []const u8) ![:0]u8 {
     const allocator = testing.allocator;
-    const test_dir = try std.fmt.allocPrint(allocator, "/tmp/zmdbx_test_{s}", .{name});
-    std.fs.cwd().makeDir(test_dir) catch |err| {
+    // Env.open 需要以 0 结尾的 C 字符串，所以用 allocPrintSentinel
+    const test_dir = try std.fmt.allocPrintSentinel(allocator, "/tmp/zmdbx_test_{s}", .{name}, 0);
+    util.makeDir(test_dir) catch |err| {
         if (err != error.PathAlreadyExists) return err;
     };
     return test_dir;
 }
 
 // 测试辅助函数：删除测试目录
-fn cleanupTestDir(path: []const u8) void {
-    std.fs.cwd().deleteTree(path) catch {};
+fn cleanupTestDir(path: [:0]u8) void {
+    util.deleteTree(path);
     testing.allocator.free(path);
 }
 
@@ -27,7 +29,6 @@ test "Error: KeyExist - duplicate key with no_overwrite" {
     defer env.deinit();
 
     try env.open(test_dir, .{}, 0o644);
-    defer env.close();
 
     // 第一次插入
     {
@@ -35,7 +36,7 @@ test "Error: KeyExist - duplicate key with no_overwrite" {
         defer txn.abort();
 
         const dbi = try txn.openDBI(null, .{});
-        try txn.put(dbi, "test_key", "value1", .{ .no_overwrite = true });
+        try txn.put(dbi, "test_key", "value1", zmdbx.PutFlagSet.init(.{ .no_overwrite = true }));
         try txn.commit();
     }
 
@@ -47,10 +48,7 @@ test "Error: KeyExist - duplicate key with no_overwrite" {
         const dbi = try txn.openDBI(null, .{});
 
         // 使用 expectError 验证返回 KeyExist 错误
-        try testing.expectError(
-            error.KeyExist,
-            txn.put(dbi, "test_key", "value2", .{ .no_overwrite = true })
-        );
+        try testing.expectError(error.KeyExist, txn.put(dbi, "test_key", "value2", zmdbx.PutFlagSet.init(.{ .no_overwrite = true })));
     }
 }
 
@@ -63,10 +61,9 @@ test "Error: BadTxn - operation on committed transaction" {
     defer env.deinit();
 
     try env.open(test_dir, .{}, 0o644);
-    defer env.close();
 
     var txn = try env.beginWriteTxn();
-    const dbi = try txn.openDBI(null, .{});
+    _ = try txn.openDBI(null, .{});
 
     // 提交事务
     try txn.commit();
@@ -89,7 +86,6 @@ test "Error: Invalid - empty key" {
     defer env.deinit();
 
     try env.open(test_dir, .{}, 0o644);
-    defer env.close();
 
     var txn = try env.beginWriteTxn();
     defer txn.abort();
@@ -104,11 +100,9 @@ test "Error: Invalid - empty key" {
     // 如果允许，这个测试会通过；如果不允许，会返回错误
     _ = result catch |err| {
         // 验证错误类型是预期的错误之一
-        try testing.expect(
-            err == error.Invalid or
+        try testing.expect(err == error.Invalid or
             err == error.Einval or
-            err == error.BadValSize
-        );
+            err == error.BadValSize);
         return;
     };
 }
@@ -122,25 +116,22 @@ test "Error: BadValSize - key too large" {
     defer env.deinit();
 
     try env.open(test_dir, .{}, 0o644);
-    defer env.close();
 
     var txn = try env.beginWriteTxn();
     defer txn.abort();
 
     const dbi = try txn.openDBI(null, .{});
 
-    // MDBX 的最大键大小通常是 511 字节 (默认页大小 4096)
-    // 创建一个超大的键
+    // MDBX 允许的最大键长取决于页大小（默认 4096 -> 2022 字节），
+    // 直接向环境查询，再构造一个刚好超出上限的键。
+    const max_key_size: usize = @intCast(try env.getMaxKeySize());
     const allocator = testing.allocator;
-    const huge_key = try allocator.alloc(u8, 1024);
+    const huge_key = try allocator.alloc(u8, max_key_size + 1);
     defer allocator.free(huge_key);
     @memset(huge_key, 'X');
 
     // 尝试插入超大键，应该返回 BadValSize 错误
-    try testing.expectError(
-        error.BadValSize,
-        txn.put(dbi, huge_key, "value", .{})
-    );
+    try testing.expectError(error.BadValSize, txn.put(dbi, huge_key, "value", .{}));
 }
 
 // Test 5: MapFull - 测试内存映射满
@@ -152,8 +143,8 @@ test "Error: MapFull - database size limit" {
     defer env.deinit();
 
     // 设置一个非常小的 mapsize (64KB)
-    try env.open(test_dir, .{ .mapsize = 64 * 1024 }, 0o644);
-    defer env.close();
+    try env.setMapsize(64 * 1024);
+    try env.open(test_dir, .{}, 0o644);
 
     // 尝试插入大量数据直到填满
     var i: usize = 0;
@@ -161,7 +152,7 @@ test "Error: MapFull - database size limit" {
     var got_mapfull = false;
 
     while (i < max_attempts) : (i += 1) {
-        var txn = env.beginTxn(null, .read_write) catch |err| {
+        var txn = env.beginWriteTxn() catch |err| {
             if (err == error.MapFull) {
                 got_mapfull = true;
                 break;
@@ -210,7 +201,6 @@ test "Error: NotFound - various scenarios" {
     defer env.deinit();
 
     try env.open(test_dir, .{}, 0o644);
-    defer env.close();
 
     // 场景 1: 读取不存在的键
     {
@@ -236,10 +226,10 @@ test "Error: NotFound - various scenarios" {
         defer txn.abort();
 
         const dbi = try txn.openDBI(null, .{});
-        var cursor = try zmdbx.Cursor.open(&txn, dbi);
+        var cursor = try zmdbx.Cursor.open(txn.txn.?, dbi);
         defer cursor.close();
 
-        try testing.expectError(error.NotFound, cursor.get(.first));
+        try testing.expectError(error.NotFound, cursor.get(null, null, .first));
     }
 }
 
@@ -252,7 +242,6 @@ test "Error: write operation on read-only transaction" {
     defer env.deinit();
 
     try env.open(test_dir, .{}, 0o644);
-    defer env.close();
 
     // 创建只读事务
     var txn = try env.beginReadTxn();
@@ -275,7 +264,6 @@ test "Boundary: maximum key size" {
     defer env.deinit();
 
     try env.open(test_dir, .{}, 0o644);
-    defer env.close();
 
     var txn = try env.beginWriteTxn();
     defer txn.abort();
@@ -293,7 +281,7 @@ test "Boundary: maximum key size" {
     try txn.put(dbi, max_key, "value", .{});
 
     const retrieved = try txn.get(dbi, max_key);
-    try testing.expectEqualStrings("value", retrieved);
+    try testing.expectEqualStrings("value", retrieved.toBytes());
 
     try txn.commit();
 }
@@ -307,7 +295,6 @@ test "Boundary: empty value" {
     defer env.deinit();
 
     try env.open(test_dir, .{}, 0o644);
-    defer env.close();
 
     var txn = try env.beginWriteTxn();
     defer txn.abort();
@@ -318,7 +305,7 @@ test "Boundary: empty value" {
     try txn.put(dbi, "empty_key", "", .{});
 
     const retrieved = try txn.get(dbi, "empty_key");
-    try testing.expectEqualStrings("", retrieved);
+    try testing.expectEqualStrings("", retrieved.toBytes());
 
     try txn.commit();
 }
@@ -332,7 +319,6 @@ test "Error handling: multiple abort calls" {
     defer env.deinit();
 
     try env.open(test_dir, .{}, 0o644);
-    defer env.close();
 
     var txn = try env.beginWriteTxn();
 

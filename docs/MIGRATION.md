@@ -1,3 +1,95 @@
+# 迁移指南
+
+本仓库有两条迁移线，别混淆：
+
+- **[Zig 0.15.2 → 0.16.0 工具链升级](#zig-0152--0160-工具链升级)**：只涉及 Zig 标准库，不改变 zmdbx 自己的 API。
+- **[zmdbx API 迁移](#api-迁移指南)**：从旧版 zmdbx API 迁移到最新的类型安全 API。
+
+---
+
+## Zig 0.15.2 → 0.16.0 工具链升级
+
+Zig 0.16 把几乎所有 I/O 搬进了 `std.Io`，并给 I/O 函数加上了必填的 `io` 参数；同时删掉了几个语言特性和内建。
+本仓库的 `src/` 是纯 C 绑定，不碰 std 的 I/O，因此**完全没改**；受影响的只有 `build.zig`、`tests/` 和 `examples/`。
+
+### 1. `build.zig`：C 源文件 / include path / libc 从 Compile step 移到 Module
+
+```zig
+// 0.15
+const lib = b.addLibrary(.{ .name = "zmdbx", .linkage = .static, .root_module = ... });
+lib.addCSourceFile(.{ .file = b.path("mdbx/mdbx.c"), .flags = &.{...} });
+lib.addIncludePath(b.path("mdbx"));
+lib.linkLibC();
+
+// 0.16 —— 全部挂在 module 上（`root_module.link_libc` / `addCSourceFile` / `addIncludePath`）
+const module = b.createModule(.{
+    .root_source_file = b.path("src/mdbx.zig"),
+    .target = target,          // createModule 给 Compile step 用时必须给 target，否则 build 脚本运行时 panic
+    .optimize = optimize,
+});
+module.addCSourceFile(.{ .file = b.path("mdbx/mdbx.c"), .flags = mdbx_c_flags });
+module.addIncludePath(b.path("mdbx"));
+module.link_libc = true;
+```
+
+另外 `b.addTest` / `b.addExecutable` 不再收 `.root_source_file`，改收 `.root_module`。
+完整可运行骨架见 `build.zig` 里的 `createZmdbxModule` / `createConsumerModule`。
+
+### 2. `std.fs` → `std.Io`，并且每次调用都要传 `io`
+
+```zig
+// 0.15
+std.fs.cwd().deleteTree(path) catch {};
+
+// 0.16
+std.Io.Dir.cwd().deleteTree(io, path) catch {};
+```
+
+`std.io` 和 `std.net` 两个命名空间整个消失；`std.fs.File` → `std.Io.File`，`std.fs.Dir` → `std.Io.Dir`。
+本仓库把这件事收敛到两个辅助模块：`tests/util.zig` 和 `examples/util.zig`
+（Zig 的 `@import` 不能跨越模块根目录，所以必须各存一份）。
+
+### 3. `std.time` 被 `std.Io.Clock` 取代
+
+```zig
+// 0.15
+const ms = std.time.milliTimestamp();   // 单调时钟
+const s  = std.time.timestamp();        // Unix 纪元秒
+
+// 0.16 —— 注意 Clock 没有 `monotonic`，取值只有 real / awake / boot / cpu_process / cpu_thread
+const ms = std.Io.Clock.awake.now(io).toMilliseconds();
+const s  = std.Io.Clock.real.now(io).toSeconds();
+```
+
+`util.zig` 里的 `millis()` / `timestamp()` 已封装好这两行。
+
+### 4. 其它改到的点
+
+| 0.15 | 0.16 |
+|---|---|
+| `std.heap.GeneralPurposeAllocator(.{}){}` | `std.heap.DebugAllocator(.{}){}` |
+| `std.fmt.allocPrintZ(a, fmt, args)` | `std.fmt.allocPrintSentinel(a, fmt, args, 0)` |
+| `std.EnumSet(T)` 上的 `.some_flag` | 已不是枚举，改成 `FlagSet.init(.{ .some_flag = true })` |
+| `env.open(path, .defaults, mode)` | `env.open(path, EnvFlagSet.init(.{}), mode)` |
+| `pub fn main() !void`（需要 io/分配器时） | `pub fn main(init: std.process.Init) !void`，取 `init.io` / `init.gpa` |
+
+### 5. 迁移中发现的、与 Zig 版本无关的老问题
+
+这些在 0.15 下也编译/通过不了，顺手修掉了：
+
+- `src/cursor.zig` 的 `Cursor.txn()`：C 函数返回 `?*MDBX_txn`，直接当 `*MDBX_txn` 返回是类型错误 → 补上 `.?`。
+- `examples/cursor_usage.zig`：把 `Val` 直接按 `{s}` 打印 → 改成 `result.key.toBytes()`。
+- `tests/test_cursor.zig`：`cursor.eof()` / `onFirst()` / `onLast()` 返回错误联合，漏了 `try`。
+- `tests/test_cursor.zig` "Cursor renew operation"：MDBX **不允许同一线程同时持有两个活跃读事务**
+  （会返回 `MDBX_BAD_RSLOT`），测试里先结束旧事务再 `renew` 游标。
+- `tests/test_errors.zig` "BadValSize"：1024 字节的键并没有超过 MDBX 默认上限（页 4096 → 2022 字节），
+  改成先 `env.getMaxKeySize()` 再构造 `max + 1` 字节的键。
+- `tests/test_val_typed.zig`：一处自相矛盾的断言（先断言 `!=`、紧接着断言 `==`）。
+- 测试里大量 `.mapsize` / `.read_write` / `.no_overwrite` 之类并不存在的标志字段，
+  改成 `setMapsize()` / `beginWriteTxn()` / `PutFlagSet.init(...)`。
+
+---
+
 # API 迁移指南
 
 本文档帮助你从旧版 zmdbx API 迁移到最新的类型安全 API。

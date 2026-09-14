@@ -1,101 +1,107 @@
-// MDBX 同步模式性能对比测试
-// 使用栈上缓冲区避免堆分配,优化性能
+// MDBX 同步模式性能对比
+//
+// 四个模式（SYNC_DURABLE / SAFE_NOSYNC / NOMETASYNC / UTTERLY_NOSYNC）在同一台机器上
+// 跑同一份 10 万条写入，看「数据安全等级」值多少性能。
+//
+// 热路径零堆分配（key/value 用栈上缓冲区），每项 1 轮热身 + 4 轮测量取最快。
+// 详见 tests/util.zig 顶部的「基准测试框架」说明。
 
 const std = @import("std");
 const zmdbx = @import("zmdbx");
+const util = @import("util.zig");
 
-const BenchResult = struct {
+/// 一个同步模式的全部配置。
+const Case = struct {
     name: []const u8,
-    operations: usize,
-    elapsed_ms: i64,
-    ops_per_sec: usize,
-    data_safety: []const u8,
+    path: [:0]const u8,
+    ops: usize,
+    /// open 时传入的标志
+    open_flags: zmdbx.EnvFlagSet,
+    /// open 之后 setFlags 打开的标志
+    set_flags: zmdbx.EnvFlagSet,
+    /// 是否放开 dirty-page 上限（大批量写事务必备）
+    tune_dp: bool = false,
+    dp_limit: u64 = 0,
+    dp_initial: u64 = 0,
+    dp_reserve: u64 = 0,
+    loose_limit: u64 = 0,
+    sync_bytes: usize = 0,
+    sync_period: c_uint = 0,
+    safety: []const u8,
 };
 
-fn printResult(result: BenchResult) void {
-    std.debug.print("  {s:<20} | {d:>10} ops | {d:>8}ms | {d:>12} ops/s | {s}\n", .{
-        result.name,
-        result.operations,
-        result.elapsed_ms,
-        result.ops_per_sec,
-        result.data_safety,
-    });
+fn envFlags(comptime base: zmdbx.EnvFlagSet, comptime extra: zmdbx.EnvFlag) zmdbx.EnvFlagSet {
+    var f = base;
+    f.insert(extra);
+    return f;
 }
 
-pub fn main() !void {
-    std.debug.print("\n╔════════════════════════════════════════════════════════════════════════════╗\n", .{});
-    std.debug.print("║              MDBX 同步模式性能与安全性对比测试                            ║\n", .{});
-    std.debug.print("╚════════════════════════════════════════════════════════════════════════════╝\n\n", .{});
+const cases = [_]Case{
+    .{
+        .name = "SYNC_DURABLE",
+        .path = "./bench_sync_durable",
+        .ops = 10_000,
+        .open_flags = zmdbx.EnvFlagSet.init(.{}),
+        .set_flags = zmdbx.EnvFlagSet.init(.{}),
+        .safety = "🟢 100% 安全",
+    },
+    .{
+        .name = "SAFE_NOSYNC",
+        .path = "./bench_safe_nosync",
+        .ops = 100_000,
+        .open_flags = envFlags(zmdbx.EnvFlagSet.init(.{}), .write_map),
+        .set_flags = envFlags(zmdbx.EnvFlagSet.init(.{}), .safe_no_sync),
+        .tune_dp = true,
+        .dp_limit = 262_144,
+        .dp_initial = 16_384,
+        .dp_reserve = 8192,
+        .loose_limit = 128,
+        .sync_bytes = 64 * 1024 * 1024,
+        .sync_period = 30 * 65536,
+        .safety = "🟡 断电<30s丢失",
+    },
+    .{
+        .name = "NOMETASYNC",
+        .path = "./bench_no_meta_sync",
+        .ops = 100_000,
+        .open_flags = envFlags(zmdbx.EnvFlagSet.init(.{}), .write_map),
+        .set_flags = envFlags(zmdbx.EnvFlagSet.init(.{}), .no_meta_sync),
+        .tune_dp = true,
+        .dp_limit = 131_072,
+        .dp_initial = 8192,
+        .dp_reserve = 4096,
+        .safety = "🟠 元数据延迟",
+    },
+    .{
+        .name = "UTTERLY_NOSYNC",
+        .path = "./bench_utterly_nosync",
+        .ops = 100_000,
+        .open_flags = envFlags(zmdbx.EnvFlagSet.init(.{}), .write_map),
+        .set_flags = envFlags(zmdbx.EnvFlagSet.init(.{}), .utterly_no_sync),
+        .tune_dp = true,
+        .dp_limit = 524_288,
+        .dp_initial = 32_768,
+        .dp_reserve = 16_384,
+        .loose_limit = 255,
+        .safety = "🔴 断电全丢失",
+    },
+};
 
-    std.debug.print("模式                 |    操作数   |   耗时   |     吞吐量    | 数据安全等级\n", .{});
-    std.debug.print("──────────────────────────────────────────────────────────────────────────────\n", .{});
-
-    // 测试不同同步模式
-    try benchSyncDurable();
-    try benchSafeNoSync();
-    try benchNoMetaSync();
-    try benchUtterlyNoSync();
-
-    std.debug.print("\n╔════════════════════════════════════════════════════════════════════════════╗\n", .{});
-    std.debug.print("║                             配置建议                                       ║\n", .{});
-    std.debug.print("╚════════════════════════════════════════════════════════════════════════════╝\n\n", .{});
-
-    std.debug.print("📊 根据您的业务场景选择合适的模式:\n\n", .{});
-    std.debug.print("🟢 SYNC_DURABLE (默认)\n", .{});
-    std.debug.print("   - 适用于: 金融交易、支付系统、用户账户\n", .{});
-    std.debug.print("   - 安全: 100%% 断电保护\n\n", .{});
-
-    std.debug.print("🟡 SAFE_NOSYNC (推荐生产)\n", .{});
-    std.debug.print("   - 适用于: 日志系统、实时分析、消息队列\n", .{});
-    std.debug.print("   - 安全: 断电丢失<30秒数据, 进程崩溃安全\n\n", .{});
-
-    std.debug.print("🟠 NOMETASYNC\n", .{});
-    std.debug.print("   - 适用于: 高频写入场景\n", .{});
-    std.debug.print("   - 安全: 元数据可能延迟, 可自动恢复\n\n", .{});
-
-    std.debug.print("🔴 UTTERLY_NOSYNC (危险)\n", .{});
-    std.debug.print("   - 适用于: 性能测试、临时缓存\n", .{});
-    std.debug.print("   - 安全: 断电数据完全丢失\n\n", .{});
-
-    // 清理测试数据
-    std.debug.print("正在清理测试数据...\n", .{});
-    cleanupTestData();
-    std.debug.print("✓ 测试完成!\n\n", .{});
-}
-
-fn cleanupTestData() void {
-    const test_paths = [_][]const u8{
-        "./bench_sync_durable",
-        "./bench_safe_nosync",
-        "./bench_no_meta_sync",
-        "./bench_utterly_nosync",
-    };
-
-    for (test_paths) |path| {
-        std.fs.cwd().deleteTree(path) catch |err| {
-            std.debug.print("  警告: 删除 {s} 失败: {}\n", .{ path, err });
-        };
-    }
-}
-
-/// 优化的格式化函数 - 使用栈上缓冲区,避免堆分配
-inline fn formatKey(buf: []u8, i: usize) []const u8 {
+/// key: "key:0000000000"（14 字节），value: "value_<i>_data"（约 18 字节）。
+inline fn fmtKey(buf: *[32]u8, i: usize) []const u8 {
     return std.fmt.bufPrint(buf, "key:{d:0>10}", .{i}) catch unreachable;
 }
 
-inline fn formatValue(buf: []u8, i: usize) []const u8 {
+inline fn fmtValue(buf: *[32]u8, i: usize) []const u8 {
     return std.fmt.bufPrint(buf, "value_{d}_data", .{i}) catch unreachable;
 }
 
-/// 1. SYNC_DURABLE 模式 (默认,最安全)
-fn benchSyncDurable() !void {
-    const test_path = "./bench_sync_durable";
-    std.fs.cwd().deleteTree(test_path) catch {};
+fn runCase(c: Case, timer: *util.Timer) anyerror!void {
+    util.deleteTree(c.path);
 
     var env = try zmdbx.Env.init();
     defer env.deinit();
 
-    // 标准配置
     try env.setGeometry(.{
         .lower = 10 * 1024 * 1024,
         .now = 200 * 1024 * 1024,
@@ -105,242 +111,61 @@ fn benchSyncDurable() !void {
         .pagesize = -1,
     });
 
-    // 使用默认标志 (MDBX_SYNC_DURABLE)
-    try env.open(test_path, zmdbx.EnvFlagSet.init(.{}), 0o755);
+    if (c.tune_dp) {
+        try env.setOption(.OptTxnDpLimit, c.dp_limit);
+        try env.setOption(.OptTxnDpInitial, c.dp_initial);
+        try env.setOption(.OptDpReserveLimit, c.dp_reserve);
+        if (c.loose_limit != 0) try env.setOption(.OptLooseLimit, c.loose_limit);
+    }
 
-    const num_ops = 10000;
-    const start = std.time.milliTimestamp();
+    try env.open(c.path, c.open_flags, 0o755);
+
+    if (c.set_flags.count() != 0) {
+        try env.setFlags(c.set_flags, true);
+    }
+    if (c.sync_bytes != 0) try env.setSyncBytes(c.sync_bytes);
+    if (c.sync_period != 0) try env.setSyncPeriod(c.sync_period);
 
     var txn = try env.beginWriteTxn();
     defer txn.abort();
 
-    var db_flags = zmdbx.DBFlagSet.init(.{});
-        db_flags.insert(.create);
-        const dbi = try txn.openDBI(null, db_flags);
+    const db_flags = zmdbx.DBFlagSet.init(.{ .create = true });
+    const dbi = try txn.openDBI(null, db_flags);
 
-    // 使用栈上缓冲区,避免堆分配
-    var key_buf: [32]u8 = undefined;
-    var value_buf: [64]u8 = undefined;
+    var kb: [32]u8 = undefined;
+    var vb: [32]u8 = undefined;
 
+    timer.start();
     var i: usize = 0;
-    while (i < num_ops) : (i += 1) {
-        const key = formatKey(&key_buf, i);
-        const value = formatValue(&value_buf, i);
-        try txn.put(dbi, key, value, zmdbx.PutFlagSet.init(.{}));
+    while (i < c.ops) : (i += 1) {
+        try txn.put(dbi, fmtKey(&kb, i), fmtValue(&vb, i), zmdbx.PutFlagSet.init(.{}));
     }
-
     try txn.commit();
-
-    const elapsed = std.time.milliTimestamp() - start;
-    const ops_per_sec = @divTrunc(num_ops * 1000, @as(usize, @intCast(elapsed)));
-
-    printResult(.{
-        .name = "SYNC_DURABLE",
-        .operations = num_ops,
-        .elapsed_ms = elapsed,
-        .ops_per_sec = ops_per_sec,
-        .data_safety = "🟢 100% 安全",
-    });
+    timer.stop();
 }
 
-/// 2. SAFE_NOSYNC 模式 (推荐生产)
-fn benchSafeNoSync() !void {
-    const test_path = "./bench_safe_nosync";
-    std.fs.cwd().deleteTree(test_path) catch {};
+pub fn main() !void {
+    util.printBenchHeader("MDBX 同步模式性能与安全性对比");
+    util.printBenchTableHeader();
 
-    var env = try zmdbx.Env.init();
-    defer env.deinit();
-
-    // 高性能配置
-    try env.setGeometry(.{
-        .lower = 10 * 1024 * 1024,
-        .now = 200 * 1024 * 1024,
-        .upper = 2 * 1024 * 1024 * 1024,
-        .growth_step = 50 * 1024 * 1024,
-        .shrink_threshold = -1,
-        .pagesize = -1,
-    });
-
-    // 性能调优
-    try env.setOption(.OptTxnDpLimit, 262144);
-    try env.setOption(.OptTxnDpInitial, 16384);
-    try env.setOption(.OptDpReserveLimit, 8192);
-    try env.setOption(.OptLooseLimit, 128);
-
-    // 使用 WRITE_MAP + SAFE_NOSYNC
-    var env_flags = zmdbx.EnvFlagSet.init(.{});
-    env_flags.insert(.write_map);
-    try env.open(test_path, env_flags, 0o755);
-    var flags_to_set = zmdbx.EnvFlagSet.init(.{});
-        flags_to_set.insert(.safe_no_sync);
-        try env.setFlags(flags_to_set, true);
-
-    // 同步阈值 (必须在 open 和 setFlags 之后)
-    try env.setSyncBytes(64 * 1024 * 1024); // 64MB
-    try env.setSyncPeriod(30 * 65536); // 30秒
-
-    const num_ops = 100000;
-    const start = std.time.milliTimestamp();
-
-    var txn = try env.beginWriteTxn();
-    defer txn.abort();
-
-    var db_flags = zmdbx.DBFlagSet.init(.{});
-        db_flags.insert(.create);
-        const dbi = try txn.openDBI(null, db_flags);
-
-    // 使用栈上缓冲区,避免堆分配
-    var key_buf: [32]u8 = undefined;
-    var value_buf: [64]u8 = undefined;
-
-    var i: usize = 0;
-    while (i < num_ops) : (i += 1) {
-        const key = formatKey(&key_buf, i);
-        const value = formatValue(&value_buf, i);
-        try txn.put(dbi, key, value, zmdbx.PutFlagSet.init(.{}));
+    for (cases) |c| {
+        const r = try util.bench(c, runCase, c.name, c.ops);
+        util.printBenchRow(r, c.safety);
     }
 
-    try txn.commit();
+    std.debug.print("\n配置建议:\n", .{});
+    std.debug.print("  🟢 SYNC_DURABLE   — 金融交易、支付、账户: 断电 100% 安全\n", .{});
+    std.debug.print("  🟡 SAFE_NOSYNC    — 日志、实时分析、消息队列: 进程崩溃安全，断电丢 <30s 数据\n", .{});
+    std.debug.print("  🟠 NOMETASYNC     — 高频写入: 元数据可能延迟，可自动恢复\n", .{});
+    std.debug.print("  🔴 UTTERLY_NOSYNC — 仅压测/临时缓存: 断电数据全丢\n", .{});
+    std.debug.print("\n注意: macOS/APFS 上 fsync 会被 SSD 控制器缓存吸收，四个模式差距很小；\n", .{});
+    std.debug.print("      部署到 Linux/HDD 时 SAFE_NOSYNC 与 SYNC_DURABLE 的差距可达 100 倍以上。\n", .{});
 
-    const elapsed = std.time.milliTimestamp() - start;
-    const ops_per_sec = @divTrunc(num_ops * 1000, @as(usize, @intCast(elapsed)));
-
-    printResult(.{
-        .name = "SAFE_NOSYNC",
-        .operations = num_ops,
-        .elapsed_ms = elapsed,
-        .ops_per_sec = ops_per_sec,
-        .data_safety = "🟡 断电<30s丢失",
-    });
+    cleanupTestData();
 }
 
-/// 3. NOMETASYNC 模式
-fn benchNoMetaSync() !void {
-    const test_path = "./bench_no_meta_sync";
-    std.fs.cwd().deleteTree(test_path) catch {};
-
-    var env = try zmdbx.Env.init();
-    defer env.deinit();
-
-    try env.setGeometry(.{
-        .lower = 10 * 1024 * 1024,
-        .now = 200 * 1024 * 1024,
-        .upper = 2 * 1024 * 1024 * 1024,
-        .growth_step = 50 * 1024 * 1024,
-        .shrink_threshold = -1,
-        .pagesize = -1,
-    });
-
-    // 中等性能参数
-    try env.setOption(.OptTxnDpLimit, 131072);
-    try env.setOption(.OptTxnDpInitial, 8192);
-    try env.setOption(.OptDpReserveLimit, 4096);
-
-    // 使用 WRITE_MAP + NOMETASYNC
-    var env_flags = zmdbx.EnvFlagSet.init(.{});
-    env_flags.insert(.write_map);
-    try env.open(test_path, env_flags, 0o755);
-    var flags_to_set = zmdbx.EnvFlagSet.init(.{});
-        flags_to_set.insert(.no_meta_sync);
-        try env.setFlags(flags_to_set, true);
-
-    const num_ops = 100000;
-    const start = std.time.milliTimestamp();
-
-    var txn = try env.beginWriteTxn();
-    defer txn.abort();
-
-    var db_flags = zmdbx.DBFlagSet.init(.{});
-        db_flags.insert(.create);
-        const dbi = try txn.openDBI(null, db_flags);
-
-    // 使用栈上缓冲区,避免堆分配
-    var key_buf: [32]u8 = undefined;
-    var value_buf: [64]u8 = undefined;
-
-    var i: usize = 0;
-    while (i < num_ops) : (i += 1) {
-        const key = formatKey(&key_buf, i);
-        const value = formatValue(&value_buf, i);
-        try txn.put(dbi, key, value, zmdbx.PutFlagSet.init(.{}));
+fn cleanupTestData() void {
+    for (cases) |c| {
+        util.deleteTreeOrWarn(c.path);
     }
-
-    try txn.commit();
-
-    const elapsed = std.time.milliTimestamp() - start;
-    const ops_per_sec = @divTrunc(num_ops * 1000, @as(usize, @intCast(elapsed)));
-
-    printResult(.{
-        .name = "NOMETASYNC",
-        .operations = num_ops,
-        .elapsed_ms = elapsed,
-        .ops_per_sec = ops_per_sec,
-        .data_safety = "🟠 元数据延迟",
-    });
-}
-
-/// 4. UTTERLY_NOSYNC 模式 (危险,仅测试用)
-fn benchUtterlyNoSync() !void {
-    const test_path = "./bench_utterly_nosync";
-    std.fs.cwd().deleteTree(test_path) catch {};
-
-    var env = try zmdbx.Env.init();
-    defer env.deinit();
-
-    try env.setGeometry(.{
-        .lower = 10 * 1024 * 1024,
-        .now = 200 * 1024 * 1024,
-        .upper = 2 * 1024 * 1024 * 1024,
-        .growth_step = 50 * 1024 * 1024,
-        .shrink_threshold = -1,
-        .pagesize = -1,
-    });
-
-    // 极限性能参数
-    try env.setOption(.OptTxnDpLimit, 524288);
-    try env.setOption(.OptTxnDpInitial, 32768);
-    try env.setOption(.OptDpReserveLimit, 16384);
-    try env.setOption(.OptLooseLimit, 255);
-
-    // 使用 WRITE_MAP + UTTERLY_NOSYNC
-    var env_flags = zmdbx.EnvFlagSet.init(.{});
-    env_flags.insert(.write_map);
-    try env.open(test_path, env_flags, 0o755);
-    var flags_to_set = zmdbx.EnvFlagSet.init(.{});
-        flags_to_set.insert(.utterly_no_sync);
-        try env.setFlags(flags_to_set, true);
-
-    const num_ops = 100000;
-    const start = std.time.milliTimestamp();
-
-    var txn = try env.beginWriteTxn();
-    defer txn.abort();
-
-    var db_flags = zmdbx.DBFlagSet.init(.{});
-        db_flags.insert(.create);
-        const dbi = try txn.openDBI(null, db_flags);
-
-    // 使用栈上缓冲区,避免堆分配
-    var key_buf: [32]u8 = undefined;
-    var value_buf: [64]u8 = undefined;
-
-    var i: usize = 0;
-    while (i < num_ops) : (i += 1) {
-        const key = formatKey(&key_buf, i);
-        const value = formatValue(&value_buf, i);
-        try txn.put(dbi, key, value, zmdbx.PutFlagSet.init(.{}));
-    }
-
-    try txn.commit();
-
-    const elapsed = std.time.milliTimestamp() - start;
-    const ops_per_sec = @divTrunc(num_ops * 1000, @as(usize, @intCast(elapsed)));
-
-    printResult(.{
-        .name = "UTTERLY_NOSYNC",
-        .operations = num_ops,
-        .elapsed_ms = elapsed,
-        .ops_per_sec = ops_per_sec,
-        .data_safety = "🔴 断电全丢失",
-    });
 }

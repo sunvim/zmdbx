@@ -3,10 +3,12 @@
 const std = @import("std");
 const testing = std.testing;
 const zmdbx = @import("zmdbx");
+const util = @import("util.zig");
 
 test "Cursor basic iteration" {
     const test_path = "./test_db_cursor";
-    std.fs.cwd().deleteTree(test_path) catch {};
+    util.deleteTree(test_path);
+    defer util.deleteTree(test_path); // 测试结束清理，别在工作目录里留 test_db_*
 
     var env = try zmdbx.Env.init();
     defer env.deinit();
@@ -38,18 +40,18 @@ test "Cursor basic iteration" {
 
         // 第一条记录
         var result = try cursor.get(null, null, .first);
-        try testing.expectEqualStrings("a", result.key);
-        try testing.expectEqualStrings("1", result.data);
+        try testing.expectEqualStrings("a", result.key.toBytes());
+        try testing.expectEqualStrings("1", result.data.toBytes());
 
         // 下一条
         result = try cursor.get(null, null, .next);
-        try testing.expectEqualStrings("b", result.key);
-        try testing.expectEqualStrings("2", result.data);
+        try testing.expectEqualStrings("b", result.key.toBytes());
+        try testing.expectEqualStrings("2", result.data.toBytes());
 
         // 再下一条
         result = try cursor.get(null, null, .next);
-        try testing.expectEqualStrings("c", result.key);
-        try testing.expectEqualStrings("3", result.data);
+        try testing.expectEqualStrings("c", result.key.toBytes());
+        try testing.expectEqualStrings("3", result.data.toBytes());
 
         // 已到末尾
         const end_result = cursor.get(null, null, .next);
@@ -59,7 +61,8 @@ test "Cursor basic iteration" {
 
 test "Cursor set_range" {
     const test_path = "./test_db_cursor_range";
-    std.fs.cwd().deleteTree(test_path) catch {};
+    util.deleteTree(test_path);
+    defer util.deleteTree(test_path); // 测试结束清理，别在工作目录里留 test_db_*
 
     var env = try zmdbx.Env.init();
     defer env.deinit();
@@ -89,15 +92,16 @@ test "Cursor set_range" {
         var cursor = try zmdbx.Cursor.open(txn.txn.?, dbi);
         defer cursor.close();
 
-        var result = try cursor.get("key005", null, .set_range);
-        try testing.expectEqualStrings("key005", result.key);
-        try testing.expectEqualStrings("b", result.data);
+        const result = try cursor.get("key005", null, .set_range);
+        try testing.expectEqualStrings("key005", result.key.toBytes());
+        try testing.expectEqualStrings("b", result.data.toBytes());
     }
 }
 
 test "Cursor last and prev" {
     const test_path = "./test_db_cursor_rev";
-    std.fs.cwd().deleteTree(test_path) catch {};
+    util.deleteTree(test_path);
+    defer util.deleteTree(test_path); // 测试结束清理，别在工作目录里留 test_db_*
 
     var env = try zmdbx.Env.init();
     defer env.deinit();
@@ -129,22 +133,23 @@ test "Cursor last and prev" {
 
         // 最后一条
         var result = try cursor.get(null, null, .last);
-        try testing.expectEqualStrings("3", result.key);
+        try testing.expectEqualStrings("3", result.key.toBytes());
 
         // 前一条
         result = try cursor.get(null, null, .prev);
-        try testing.expectEqualStrings("2", result.key);
+        try testing.expectEqualStrings("2", result.key.toBytes());
 
         // 再前一条
         result = try cursor.get(null, null, .prev);
-        try testing.expectEqualStrings("1", result.key);
+        try testing.expectEqualStrings("1", result.key.toBytes());
     }
 }
 
 // Test: Cursor put - 使用游标插入数据
 test "Cursor put operation" {
     const test_path = "./test_db_cursor_put";
-    std.fs.cwd().deleteTree(test_path) catch {};
+    util.deleteTree(test_path);
+    defer util.deleteTree(test_path); // 测试结束清理，别在工作目录里留 test_db_*
 
     var env = try zmdbx.Env.init();
     defer env.deinit();
@@ -191,7 +196,8 @@ test "Cursor put operation" {
 // Test: Cursor delete - 使用游标删除数据
 test "Cursor delete operation" {
     const test_path = "./test_db_cursor_del";
-    std.fs.cwd().deleteTree(test_path) catch {};
+    util.deleteTree(test_path);
+    defer util.deleteTree(test_path); // 测试结束清理，别在工作目录里留 test_db_*
 
     var env = try zmdbx.Env.init();
     defer env.deinit();
@@ -223,7 +229,7 @@ test "Cursor delete operation" {
 
         // 定位到 key2 并删除
         _ = try cursor.get("key2", null, .set_range);
-        try cursor.del(.current);
+        try cursor.del(zmdbx.PutFlagSet.init(.{ .current = true }));
 
         try txn.commit();
     }
@@ -235,16 +241,17 @@ test "Cursor delete operation" {
 
         const dbi = try txn.openDBI(null, zmdbx.DBFlagSet.init(.{}));
 
-        _ = try txn.getBytes(dbi, "key1");  // 应该存在
-        try testing.expectError(error.NotFound, txn.getBytes(dbi, "key2"));  // 已删除
-        _ = try txn.getBytes(dbi, "key3");  // 应该存在
+        _ = try txn.getBytes(dbi, "key1"); // 应该存在
+        try testing.expectError(error.NotFound, txn.getBytes(dbi, "key2")); // 已删除
+        _ = try txn.getBytes(dbi, "key3"); // 应该存在
     }
 }
 
 // Test: Cursor count - 统计重复键的数量
 test "Cursor count operation" {
     const test_path = "./test_db_cursor_count";
-    std.fs.cwd().deleteTree(test_path) catch {};
+    util.deleteTree(test_path);
+    defer util.deleteTree(test_path); // 测试结束清理，别在工作目录里留 test_db_*
 
     var env = try zmdbx.Env.init();
     defer env.deinit();
@@ -280,7 +287,8 @@ test "Cursor count operation" {
 // Test: Cursor eof - 检查是否到达末尾
 test "Cursor eof check" {
     const test_path = "./test_db_cursor_eof";
-    std.fs.cwd().deleteTree(test_path) catch {};
+    util.deleteTree(test_path);
+    defer util.deleteTree(test_path); // 测试结束清理，别在工作目录里留 test_db_*
 
     var env = try zmdbx.Env.init();
     defer env.deinit();
@@ -309,18 +317,19 @@ test "Cursor eof check" {
 
         // 定位到第一条记录
         _ = try cursor.get(null, null, .first);
-        try testing.expect(!cursor.eof());  // 不在 EOF
+        try testing.expect(!(try cursor.eof())); // 不在 EOF
 
         // 尝试移到下一条（不存在）
         _ = cursor.get(null, null, .next) catch {};
-        try testing.expect(cursor.eof());  // 现在在 EOF
+        try testing.expect(try cursor.eof()); // 现在在 EOF
     }
 }
 
 // Test: Cursor onFirst - 检查是否在第一条记录
 test "Cursor onFirst check" {
     const test_path = "./test_db_cursor_onfirst";
-    std.fs.cwd().deleteTree(test_path) catch {};
+    util.deleteTree(test_path);
+    defer util.deleteTree(test_path); // 测试结束清理，别在工作目录里留 test_db_*
 
     var env = try zmdbx.Env.init();
     defer env.deinit();
@@ -350,18 +359,19 @@ test "Cursor onFirst check" {
 
         // 定位到第一条
         _ = try cursor.get(null, null, .first);
-        try testing.expect(cursor.onFirst());  // 在第一条
+        try testing.expect(try cursor.onFirst()); // 在第一条
 
         // 移到下一条
         _ = try cursor.get(null, null, .next);
-        try testing.expect(!cursor.onFirst());  // 不在第一条
+        try testing.expect(!(try cursor.onFirst())); // 不在第一条
     }
 }
 
 // Test: Cursor onLast - 检查是否在最后一条记录
 test "Cursor onLast check" {
     const test_path = "./test_db_cursor_onlast";
-    std.fs.cwd().deleteTree(test_path) catch {};
+    util.deleteTree(test_path);
+    defer util.deleteTree(test_path); // 测试结束清理，别在工作目录里留 test_db_*
 
     var env = try zmdbx.Env.init();
     defer env.deinit();
@@ -391,18 +401,19 @@ test "Cursor onLast check" {
 
         // 定位到最后一条
         _ = try cursor.get(null, null, .last);
-        try testing.expect(cursor.onLast());  // 在最后一条
+        try testing.expect(try cursor.onLast()); // 在最后一条
 
         // 移到前一条
         _ = try cursor.get(null, null, .prev);
-        try testing.expect(!cursor.onLast());  // 不在最后一条
+        try testing.expect(!(try cursor.onLast())); // 不在最后一条
     }
 }
 
 // Test: Cursor renew - 续订游标
 test "Cursor renew operation" {
     const test_path = "./test_db_cursor_renew";
-    std.fs.cwd().deleteTree(test_path) catch {};
+    util.deleteTree(test_path);
+    defer util.deleteTree(test_path); // 测试结束清理，别在工作目录里留 test_db_*
 
     var env = try zmdbx.Env.init();
     defer env.deinit();
@@ -432,6 +443,10 @@ test "Cursor renew operation" {
     // 使用游标
     _ = try cursor.get(null, null, .first);
 
+    // MDBX 不允许同一线程同时持有两个活跃的读事务（会返回 BadRSlot），
+    // 所以先结束旧事务；游标本身可以在 renew 之前保持打开。
+    txn.abort();
+
     // 续订游标到新事务
     var new_txn = try env.beginReadTxn();
     defer new_txn.abort();
@@ -440,13 +455,14 @@ test "Cursor renew operation" {
 
     // 验证游标可以继续使用
     const result = try cursor.get(null, null, .first);
-    try testing.expectEqualStrings("key1", result.key);
+    try testing.expectEqualStrings("key1", result.key.toBytes());
 }
 
 // Test: Cursor txn and dbi - 获取关联的事务和数据库句柄
 test "Cursor txn and dbi accessors" {
     const test_path = "./test_db_cursor_accessors";
-    std.fs.cwd().deleteTree(test_path) catch {};
+    util.deleteTree(test_path);
+    defer util.deleteTree(test_path); // 测试结束清理，别在工作目录里留 test_db_*
 
     var env = try zmdbx.Env.init();
     defer env.deinit();
@@ -457,8 +473,8 @@ test "Cursor txn and dbi accessors" {
     defer txn.abort();
 
     var db_flags = zmdbx.DBFlagSet.init(.{});
-        db_flags.insert(.create);
-        const dbi = try txn.openDBI(null, db_flags);
+    db_flags.insert(.create);
+    const dbi = try txn.openDBI(null, db_flags);
     var cursor = try zmdbx.Cursor.open(txn.txn.?, dbi);
     defer cursor.close();
 

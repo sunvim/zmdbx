@@ -196,7 +196,6 @@ pub const Val = struct {
         return copy;
     }
 
-
     // ==================== 类型化构造方法 ====================
     // 以下方法提供类型安全的数据构造，自动处理字节转换
 
@@ -431,7 +430,6 @@ pub const Val = struct {
         }
         return std.mem.bytesToValue(u128, bytes[0..@sizeOf(u128)]);
     }
-
 
     // ==================== 浮点数类型支持 ====================
 

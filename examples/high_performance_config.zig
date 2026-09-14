@@ -3,12 +3,27 @@
 
 const std = @import("std");
 const zmdbx = @import("zmdbx");
+const util = @import("util.zig");
+
+/// 每个场景一个数据库路径。示例跑完会全部删除，不在工作目录留测试数据。
+const db_paths = [_][]const u8{
+    "./log.mdbx",
+    "./financial.mdbx",
+    "./hybrid.mdbx",
+    "./ultra_perf.mdbx",
+};
+
+/// 清掉所有示例数据库（开始前与结束后各调一次）。
+fn cleanupAll() void {
+    for (db_paths) |p| util.deleteTree(p);
+}
 
 /// 场景 1: 高性能日志系统 (推荐生产环境)
 /// - 写入速度: ~150,000 ops/s
 /// - 数据安全: 断电丢失 <30秒 或 <64MB 数据
 /// - 进程崩溃: 100% 数据安全
 pub fn setupHighPerformanceLog() !zmdbx.Env {
+    util.deleteTree("./log.mdbx"); // 从干净状态开始
     var env = try zmdbx.Env.init();
 
     // 1. 设置几何参数 (大容量,快速增长)
@@ -48,6 +63,7 @@ pub fn setupHighPerformanceLog() !zmdbx.Env {
 /// - 数据安全: 100% 断电保护
 /// - 适用于: 金融交易、支付系统、用户账户
 pub fn setupFinancialDatabase() !zmdbx.Env {
+    util.deleteTree("./financial.mdbx"); // 从干净状态开始
     var env = try zmdbx.Env.init();
 
     // 1. 中等容量,稳定增长
@@ -75,6 +91,7 @@ pub fn setupFinancialDatabase() !zmdbx.Env {
 /// - 数据安全: 断电丢失 <5秒 或 <16MB 数据
 /// - 适用于: 通用应用、API 后端、缓存层
 pub fn setupHybridDatabase() !zmdbx.Env {
+    util.deleteTree("./hybrid.mdbx"); // 从干净状态开始
     var env = try zmdbx.Env.init();
 
     try env.setGeometry(.{
@@ -112,6 +129,7 @@ pub fn setupHybridDatabase() !zmdbx.Env {
 /// - 数据安全: 断电数据完全丢失
 /// - 适用于: 性能测试、临时缓存、可重建的数据
 pub fn setupUltraHighPerformance() !zmdbx.Env {
+    util.deleteTree("./ultra_perf.mdbx"); // 从干净状态开始
     var env = try zmdbx.Env.init();
 
     try env.setGeometry(.{
@@ -142,7 +160,8 @@ pub fn setupUltraHighPerformance() !zmdbx.Env {
 
 /// 演示如何在应用中使用
 pub fn main() !void {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    // Zig 0.16: std.heap.GeneralPurposeAllocator 已改名 DebugAllocator
+    var gpa = std.heap.DebugAllocator(.{}){};
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
@@ -153,12 +172,16 @@ pub fn main() !void {
     // 根据您的场景选择合适的配置
     std.debug.print("正在使用高性能日志配置...\n", .{});
 
+    // 从干净状态开始；结束时删除（包括出错提前返回的情况）
+    cleanupAll();
+    defer cleanupAll();
+
     var env = try setupHighPerformanceLog();
     defer env.deinit();
 
     // 批量写入测试
     const num_records = 100000;
-    const start = std.time.milliTimestamp();
+    const start = util.millis();
 
     {
         var txn = try env.beginWriteTxn();
@@ -178,7 +201,7 @@ pub fn main() !void {
             const value = try std.fmt.allocPrint(
                 allocator,
                 "{{\"timestamp\":{d},\"level\":\"INFO\",\"message\":\"Test log entry {d}\"}}",
-                .{ std.time.timestamp(), i },
+                .{ util.timestamp(), i },
             );
             defer allocator.free(value);
 
@@ -188,7 +211,7 @@ pub fn main() !void {
         try txn.commit();
     }
 
-    const elapsed = std.time.milliTimestamp() - start;
+    const elapsed = util.millis() - start;
     const ops_per_sec = @divTrunc(num_records * 1000, @as(usize, @intCast(elapsed)));
 
     std.debug.print("\n✓ 成功写入 {} 条记录\n", .{num_records});
@@ -200,8 +223,8 @@ pub fn main() !void {
     try env.sync(true, false);
     std.debug.print("✓ 同步完成!\n", .{});
 
-    // 清理
+    // 清理（实际的删除由 main 入口处的 defer 完成，出错路径也会清）
     std.debug.print("\n正在清理测试数据...\n", .{});
-    std.fs.cwd().deleteTree("./log.mdbx") catch {};
+    cleanupAll();
     std.debug.print("✓ 完成!\n\n", .{});
 }

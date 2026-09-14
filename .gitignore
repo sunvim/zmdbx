@@ -21,5 +21,17 @@ zig-out/
 .serena/
 
 # Benchmark generated databases
+bench_*/
 bench_db_*/
 bench_performance
+
+# 测试 / 示例运行时产生的数据库目录与文件
+test_db_*/
+testdb/
+testdb_batch/
+*.mdbx/
+*.mdbx-lck/
+log.mdbx
+hybrid.mdbx
+ultra_perf.mdbx
+zig016_util_probe/

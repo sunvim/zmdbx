@@ -3,14 +3,22 @@
 
 const std = @import("std");
 const zmdbx = @import("zmdbx");
+const util = @import("util.zig");
+
+/// 示例用的数据库路径。跑完就删，不在工作目录里留数据。
+const db_path = "./testdb";
 
 pub fn main() !void {
     std.debug.print("=== MDBX 游标使用示例 ===\n\n", .{});
 
+    // 从干净状态开始；结束时删除（包括出错提前返回的情况）
+    util.deleteTree(db_path);
+    defer util.deleteTree(db_path);
+
     // 创建并打开环境
     var env = try zmdbx.Env.init();
     defer env.deinit();
-    try env.open("./testdb", zmdbx.EnvFlagSet.init(.{}), 0o644);
+    try env.open(db_path, zmdbx.EnvFlagSet.init(.{}), 0o644);
 
     // 写入测试数据
     std.debug.print("1. 写入测试数据...\n", .{});
@@ -49,7 +57,7 @@ pub fn main() !void {
 
         while (true) {
             count += 1;
-            std.debug.print("   [{d}] key: {s}, value: {s}\n", .{ count, result.key, result.data });
+            std.debug.print("   [{d}] key: {s}, value: {s}\n", .{ count, result.key.toBytes(), result.data.toBytes() });
 
             result = cursor.get(null, null, .next) catch |err| {
                 if (err == error.NotFound) break;
@@ -76,7 +84,7 @@ pub fn main() !void {
 
         while (true) {
             count += 1;
-            std.debug.print("   [{d}] key: {s}, value: {s}\n", .{ count, result.key, result.data });
+            std.debug.print("   [{d}] key: {s}, value: {s}\n", .{ count, result.key.toBytes(), result.data.toBytes() });
 
             result = cursor.get(null, null, .next) catch |err| {
                 if (err == error.NotFound) break;
@@ -88,4 +96,5 @@ pub fn main() !void {
     }
 
     std.debug.print("\n✓ 游标使用示例完成！\n", .{});
+    std.debug.print("  （示例数据库已删除，工作目录保持干净）\n", .{});
 }

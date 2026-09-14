@@ -2,7 +2,7 @@
 
 🚀 **高性能、类型安全的 MDBX Zig 语言绑定**
 
-`zmdbx` 是 [libmdbx](https://github.com/erthink/libmdbx) 的 Zig 语言绑定库，提供了简洁、符合 Zig 风格的 API，完全兼容 Zig 0.15.2。
+`zmdbx` 是 [libmdbx](https://github.com/erthink/libmdbx) 的 Zig 语言绑定库，提供了简洁、符合 Zig 风格的 API，完全兼容 Zig 0.16.0。
 
 ## ✨ 特性
 
@@ -15,37 +15,48 @@
 
 ## ⚡ 性能表现
 
-### 标准模式性能（SYNC_DURABLE - 默认）
+> 下面所有数字都是 **best-of-5**（1 轮热身 + 4 轮测量取最快）的实测值，
+> 环境：Apple M3 Max / macOS 26 / Zig 0.16.0 / `-Doptimize=ReleaseFast`。
+> 热路径零堆分配，计时区段不含建库与灌数据。复现方式见 [BENCHMARKS.md](BENCHMARKS.md)。
 
-在 ARM64 硬件上，ReleaseFast 模式，提供 100% 断电保护：
+### 读写吞吐（推荐生产配置：`write_map` + `safe_no_sync`）
 
-| 操作 | 吞吐量 |
-|------|--------|
-| 顺序写入 (10万条) | ~85,397 ops/s |
-| 随机写入 (10万条) | ~70,372 ops/s |
-| 顺序读取 (10万条) | ~109,409 ops/s |
-| 随机读取 (5万次) | ~106,609 ops/s |
-| 混合操作 (读写删 5万次) | ~93,984 ops/s |
-| 批量删除 (5万条) | ~106,382 ops/s |
+| 操作 | 吞吐量 | 单次耗时 |
+|------|--------|---------|
+| 顺序写入 (10万条) | ~8,300,000 ops/s | 120 ns |
+| 随机写入 (10万条) | ~4,000,000 ops/s | 250 ns |
+| 顺序读取 (10万条) | ~10,000,000 ops/s | 100 ns |
+| 随机读取 (5万次) | ~5,800,000 ops/s | 172 ns |
+| 混合操作 (读写删 5万次) | ~8,800,000 ops/s | 113 ns |
+| 批量删除 (5万条) | ~3,700,000 ops/s | 270 ns |
 
-### 🚀 极限性能模式（SAFE_NOSYNC - 生产推荐）
+绑定本身的开销约等于零：同一份逻辑直接用 C API 写，`mdbx_put`/`mdbx_get`
+分别是 84ns / 90ns，走 Zig 封装是 85ns / 91ns（差 1~2% 的测量噪声量级）。
 
-使用优化配置（write_map + safe_no_sync + 性能调优参数）：
+> ⚠️ `MDBX_WRITEMAP` 对写入影响很大：实测同一个 100 万次写入的单事务，
+> 开 `write_map` 是 84ns/op，不开是 165ns/op（约 2 倍）。
+
+### 同步模式对比
 
 | 同步模式 | 操作数 | 吞吐量 | 数据安全等级 |
 |---------|--------|--------|-------------|
-| **SAFE_NOSYNC** 🏆 | 10万条/12ms | **~8,333,333 ops/s** | 🟡 断电丢失<30s |
-| NOMETASYNC | 10万条/13ms | ~7,692,307 ops/s | 🟠 元数据延迟 |
-| SYNC_DURABLE | 1万条/2ms | ~5,000,000 ops/s | 🟢 100% 安全 |
+| **SAFE_NOSYNC** 🏆 | 10万条/12.1ms | **~8,300,000 ops/s** | 🟡 断电丢失<30s |
+| UTTERLY_NOSYNC | 10万条/12.1ms | ~8,200,000 ops/s | 🔴 断电全丢失 |
+| NOMETASYNC | 10万条/12.7ms | ~7,900,000 ops/s | 🟠 元数据延迟 |
+| SYNC_DURABLE | 1万条/1.5ms | ~6,900,000 ops/s | 🟢 100% 安全 |
+
+小事务（每 10 条提交一次）下差距会拉开：SAFE_NOSYNC 约 1,850,000 ops/s，
+SYNC_DURABLE 约 130,000 ops/s（**14 倍**）。批量越大差距越小，
+10 万条一个事务时两者只差 1.3 倍。
 
 **配置建议**：
 - 🟢 **金融/支付系统**：使用 SYNC_DURABLE（默认）
-- 🟡 **日志/消息队列**：使用 SAFE_NOSYNC（性能提升80-100倍）
+- 🟡 **日志/消息队列**：使用 SAFE_NOSYNC + `write_map`
 - 🟠 **高频写入场景**：使用 NOMETASYNC
 
 运行完整对比测试：
 ```bash
-zig build bench-sync -Doptimize=ReleaseFast
+zig build bench-all -Doptimize=ReleaseFast
 ```
 
 更多详情请参阅 [BENCHMARKS.md](BENCHMARKS.md)。
@@ -415,10 +426,10 @@ zig build run-batch
 zig build run-perf
 ```
 
-或者手动编译运行：
+或者手动编译运行（Zig 0.16 写法）：
 
 ```bash
-zig build-exe examples/basic_usage.zig --dep zmdbx --mod zmdbx::src/mdbx.zig
+zig build-exe examples/basic_usage.zig --dep zmdbx -Mroot=examples/basic_usage.zig -Mzmdbx=src/mdbx.zig
 ./basic_usage
 ```
 
@@ -432,14 +443,17 @@ zig build test
 
 ### 运行性能压测
 
-**重要**: 由于 Zig Debug 模式的运行时安全检查，benchmark 必须使用 Release 模式运行：
+**重要**: 基准测试必须用 ReleaseFast 模式运行。Debug 模式下分配器带泄漏检查、
+Zig 侧无优化，数字会低 1~3 个数量级（基准程序检测到非 Release 构建时会自己打警告）：
 
 ```bash
-# 推荐：使用 ReleaseFast 模式
-zig build bench -Doptimize=ReleaseFast
+# 推荐：一次跑完全部 4 个基准
+zig build bench-all -Doptimize=ReleaseFast
 
-# 或者使用 ReleaseSafe 模式（保留错误处理）
-zig build bench -Doptimize=ReleaseSafe
+# 也可以单独跑
+zig build bench       -Doptimize=ReleaseFast   # 6 个标准读写场景
+zig build bench-sync  -Doptimize=ReleaseFast   # 4 种同步模式
+zig build bench-txn   -Doptimize=ReleaseFast   # 事务批量大小 × 同步模式
 ```
 
 更多详情请参阅 [BENCHMARKS.md](BENCHMARKS.md)。

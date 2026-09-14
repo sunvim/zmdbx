@@ -3,6 +3,7 @@
 const std = @import("std");
 const testing = std.testing;
 const zmdbx = @import("zmdbx");
+const util = @import("util.zig");
 
 test "Env init and deinit" {
     var env = try zmdbx.Env.init();
@@ -15,7 +16,8 @@ test "Env open and close" {
     const test_path = "./test_db_basic";
 
     // 清理测试目录
-    std.fs.cwd().deleteTree(test_path) catch {};
+    util.deleteTree(test_path);
+    defer util.deleteTree(test_path); // 测试结束清理，别在工作目录里留 test_db_*
 
     var env = try zmdbx.Env.init();
     defer env.deinit();
@@ -28,12 +30,13 @@ test "Env open and close" {
 
 test "Basic put and get" {
     const test_path = "./test_db_putget";
-    std.fs.cwd().deleteTree(test_path) catch {};
+    util.deleteTree(test_path);
+    defer util.deleteTree(test_path); // 测试结束清理，别在工作目录里留 test_db_*
 
     var env = try zmdbx.Env.init();
     defer env.deinit();
 
-    try env.open(test_path, .defaults, 0o755);
+    try env.open(test_path, zmdbx.EnvFlagSet.init(.{}), 0o755);
 
     // 写入数据
     {
@@ -61,7 +64,8 @@ test "Basic put and get" {
 
 test "Multiple puts and gets" {
     const test_path = "./test_db_multiple";
-    std.fs.cwd().deleteTree(test_path) catch {};
+    util.deleteTree(test_path);
+    defer util.deleteTree(test_path); // 测试结束清理，别在工作目录里留 test_db_*
 
     var env = try zmdbx.Env.init();
     defer env.deinit();
@@ -102,7 +106,8 @@ test "Multiple puts and gets" {
 
 test "Delete operation" {
     const test_path = "./test_db_delete";
-    std.fs.cwd().deleteTree(test_path) catch {};
+    util.deleteTree(test_path);
+    defer util.deleteTree(test_path); // 测试结束清理，别在工作目录里留 test_db_*
 
     var env = try zmdbx.Env.init();
     defer env.deinit();
@@ -145,7 +150,8 @@ test "Delete operation" {
 
 test "Transaction abort" {
     const test_path = "./test_db_abort";
-    std.fs.cwd().deleteTree(test_path) catch {};
+    util.deleteTree(test_path);
+    defer util.deleteTree(test_path); // 测试结束清理，别在工作目录里留 test_db_*
 
     var env = try zmdbx.Env.init();
     defer env.deinit();

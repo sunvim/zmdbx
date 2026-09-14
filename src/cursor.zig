@@ -41,8 +41,10 @@ pub const Cursor = struct {
     }
 
     /// 获取游标关联的事务
+    ///
+    /// MDBX 保证只要游标有效，其关联事务就必然非空，因此这里用 `.?` 断言。
     pub fn txn(self: *Self) *c.MDBX_txn {
-        return c.mdbx_cursor_txn(self.cursor);
+        return c.mdbx_cursor_txn(self.cursor).?;
     }
 
     /// 获取游标关联的 DBI

@@ -3,20 +3,22 @@
 const std = @import("std");
 const testing = std.testing;
 const zmdbx = @import("zmdbx");
+const util = @import("util.zig");
 
 // 测试辅助函数：创建临时测试目录
-fn createTestDir(name: []const u8) ![]const u8 {
+fn createTestDir(name: []const u8) ![:0]u8 {
     const allocator = testing.allocator;
-    const test_dir = try std.fmt.allocPrint(allocator, "/tmp/zmdbx_test_txn_{s}", .{name});
-    std.fs.cwd().makeDir(test_dir) catch |err| {
+    // Env.open 需要以 0 结尾的 C 字符串，所以用 allocPrintSentinel
+    const test_dir = try std.fmt.allocPrintSentinel(allocator, "/tmp/zmdbx_test_txn_{s}", .{name}, 0);
+    util.makeDir(test_dir) catch |err| {
         if (err != error.PathAlreadyExists) return err;
     };
     return test_dir;
 }
 
 // 测试辅助函数：删除测试目录
-fn cleanupTestDir(path: []const u8) void {
-    std.fs.cwd().deleteTree(path) catch {};
+fn cleanupTestDir(path: [:0]u8) void {
+    util.deleteTree(path);
     testing.allocator.free(path);
 }
 
@@ -29,7 +31,6 @@ test "Txn info operation" {
     defer env.deinit();
 
     try env.open(test_dir, .{}, 0o644);
-    defer env.close();
 
     // 创建写事务并获取信息
     {
@@ -43,8 +44,8 @@ test "Txn info operation" {
         const info = try txn.info();
 
         // 验证事务信息的基本字段
-        try testing.expect(info.txn_id > 0);  // 事务 ID 应该大于 0
-        try testing.expect(info.txn_space_used > 0);  // 应该有一些空间被使用
+        try testing.expect(info.txn_id > 0); // 事务 ID 应该大于 0
+        try testing.expect(info.txn_space_used > 0); // 应该有一些空间被使用
 
         try txn.commit();
     }
@@ -70,7 +71,6 @@ test "Txn reset operation (read-only)" {
     defer env.deinit();
 
     try env.open(test_dir, .{}, 0o644);
-    defer env.close();
 
     // 先插入一些数据
     {
@@ -90,7 +90,7 @@ test "Txn reset operation (read-only)" {
 
     // 读取数据
     const value1 = try txn.get(dbi, "key1");
-    try testing.expectEqualStrings("value1", value1);
+    try testing.expectEqualStrings("value1", value1.toBytes());
 
     // 重置事务
     try txn.reset();
@@ -109,7 +109,6 @@ test "Txn renew operation (read-only)" {
     defer env.deinit();
 
     try env.open(test_dir, .{}, 0o644);
-    defer env.close();
 
     // 先插入一些数据
     {
@@ -129,7 +128,7 @@ test "Txn renew operation (read-only)" {
 
     // 第一次读取
     const value1 = try txn.get(dbi, "key1");
-    try testing.expectEqualStrings("value1", value1);
+    try testing.expectEqualStrings("value1", value1.toBytes());
 
     // 重置事务
     try txn.reset();
@@ -139,7 +138,7 @@ test "Txn renew operation (read-only)" {
 
     // 续订后应该可以继续使用
     const value2 = try txn.get(dbi, "key1");
-    try testing.expectEqualStrings("value1", value2);
+    try testing.expectEqualStrings("value1", value2.toBytes());
 }
 
 // Test 4: Reset and renew cycle - 测试多次重置和续订
@@ -151,7 +150,6 @@ test "Txn reset-renew cycle" {
     defer env.deinit();
 
     try env.open(test_dir, .{}, 0o644);
-    defer env.close();
 
     // 插入初始数据
     {
@@ -174,7 +172,7 @@ test "Txn reset-renew cycle" {
     while (i < 3) : (i += 1) {
         // 读取数据
         const value = try txn.get(dbi, "key1");
-        try testing.expectEqualStrings("value1", value);
+        try testing.expectEqualStrings("value1", value.toBytes());
 
         // 重置
         try txn.reset();
@@ -185,7 +183,7 @@ test "Txn reset-renew cycle" {
 
     // 最后一次验证
     const final_value = try txn.get(dbi, "key1");
-    try testing.expectEqualStrings("value1", final_value);
+    try testing.expectEqualStrings("value1", final_value.toBytes());
 }
 
 // Test 5: Mark transaction as broken - 标记事务为损坏
@@ -197,7 +195,6 @@ test "Txn markBroken operation" {
     defer env.deinit();
 
     try env.open(test_dir, .{}, 0o644);
-    defer env.close();
 
     var txn = try env.beginWriteTxn();
     // 注意：不使用 defer txn.abort()，因为我们要手动处理
@@ -214,7 +211,7 @@ test "Txn markBroken operation" {
 
     // 验证数据没有被提交
     {
-        var read_txn = try env.beginTxn(null, .read_only);
+        var read_txn = try env.beginReadTxn();
         defer read_txn.abort();
 
         const read_dbi = try read_txn.openDBI(null, .{});
@@ -231,7 +228,6 @@ test "Txn complex operations sequence" {
     defer env.deinit();
 
     try env.open(test_dir, .{}, 0o644);
-    defer env.close();
 
     // 复杂的事务操作序列
     {
@@ -270,12 +266,12 @@ test "Txn complex operations sequence" {
         const dbi = try txn.openDBI(null, .{});
 
         const val1 = try txn.get(dbi, "key1");
-        try testing.expectEqualStrings("new_value1", val1);
+        try testing.expectEqualStrings("new_value1", val1.toBytes());
 
         try testing.expectError(error.NotFound, txn.get(dbi, "key2"));
 
         const val3 = try txn.get(dbi, "key3");
-        try testing.expectEqualStrings("value3", val3);
+        try testing.expectEqualStrings("value3", val3.toBytes());
     }
 }
 
@@ -288,7 +284,6 @@ test "Txn read-only write restriction" {
     defer env.deinit();
 
     try env.open(test_dir, .{}, 0o644);
-    defer env.close();
 
     var txn = try env.beginReadTxn();
     defer txn.abort();
@@ -308,7 +303,6 @@ test "Txn info changes across operations" {
     defer env.deinit();
 
     try env.open(test_dir, .{}, 0o644);
-    defer env.close();
 
     var txn = try env.beginWriteTxn();
     defer txn.abort();

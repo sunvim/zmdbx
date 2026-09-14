@@ -3,9 +3,17 @@
 
 const std = @import("std");
 const zmdbx = @import("zmdbx");
+const util = @import("util.zig");
+
+/// 示例用的数据库路径。跑完就删，不在工作目录里留数据。
+const db_path = "./testdb";
 
 pub fn main() !void {
     std.debug.print("=== MDBX 基本使用示例 ===\n\n", .{});
+
+    // 从干净状态开始；结束时删除（包括出错提前返回的情况）
+    util.deleteTree(db_path);
+    defer util.deleteTree(db_path);
 
     // 1. 创建环境
     std.debug.print("1. 创建环境...\n", .{});
@@ -16,8 +24,8 @@ pub fn main() !void {
     std.debug.print("2. 设置数据库参数...\n", .{});
     try env.setMaxdbs(10);
     try env.setGeometry(.{
-        .lower = 1024 * 1024,      // 1MB 最小
-        .now = 10 * 1024 * 1024,   // 10MB 初始
+        .lower = 1024 * 1024, // 1MB 最小
+        .now = 10 * 1024 * 1024, // 10MB 初始
         .upper = 100 * 1024 * 1024, // 100MB 最大
         .growth_step = 1024 * 1024, // 1MB 增长步长
         .shrink_threshold = -1,
@@ -26,7 +34,7 @@ pub fn main() !void {
 
     // 3. 打开环境
     std.debug.print("3. 打开数据库环境...\n", .{});
-    try env.open("./testdb", zmdbx.EnvFlagSet.init(.{}), 0o644);
+    try env.open(db_path, zmdbx.EnvFlagSet.init(.{}), 0o644);
 
     // 4. 开始写事务
     std.debug.print("4. 开始写事务...\n", .{});
@@ -71,4 +79,5 @@ pub fn main() !void {
     std.debug.print("   验证读取: name = {s}\n", .{verify_name});
 
     std.debug.print("\n✓ 基本使用示例完成！\n", .{});
+    std.debug.print("  （示例数据库已删除，工作目录保持干净）\n", .{});
 }
